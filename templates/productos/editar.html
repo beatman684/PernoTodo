@@ -55,6 +55,7 @@
 </div>
 
 <form method="POST" action="{{ url_for('editar_producto', id_producto=producto.id_producto) }}" id="prodForm">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <div class="row g-3">
 
   <!-- COL IZQUIERDA -->

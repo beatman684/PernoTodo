@@ -42,6 +42,7 @@
                                   action="{{ url_for('eliminar_usuario', id_usuario=u.id_usuario) }}"
                                   style="display:inline"
                                   onsubmit="return confirm('¿Eliminar usuario {{ u.nombre }}?')">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button class="btn btn-sm btn-danger">
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -60,6 +61,7 @@
                                 </div>
                                 <form method="POST"
                                       action="{{ url_for('cambiar_password', id_usuario=u.id_usuario) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <div class="modal-body">
                                         <p class="text-muted small">Usuario: <strong>{{ u.nombre }}</strong></p>
                                         <input type="password" name="nueva_password"

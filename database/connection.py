@@ -1,6 +1,6 @@
 import sqlite3
 import os
-import hashlib
+from werkzeug.security import generate_password_hash
 
 DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pernotodo.db')
 
@@ -13,8 +13,8 @@ def get_db():
     return conn
 
 
-def _hash(password, length=24):
-    return hashlib.sha256(password.encode('utf-8')).hexdigest()[:length]
+def _hash(password):
+    return generate_password_hash(password)
 
 
 def migrate_db():
@@ -49,6 +49,14 @@ def migrate_db():
             cur.execute("ALTER TABLE ventas ADD COLUMN id_sucursal INTEGER DEFAULT 1")
             db.commit()
 
+        # 4b. Añadir columnas de desglose (subtotal, IVA, descuento) a ventas
+        for col, ddl in [('subtotal',  "ALTER TABLE ventas ADD COLUMN subtotal DECIMAL(10,2)"),
+                         ('iva',       "ALTER TABLE ventas ADD COLUMN iva DECIMAL(10,2)"),
+                         ('descuento', "ALTER TABLE ventas ADD COLUMN descuento DECIMAL(10,2) DEFAULT 0")]:
+            if col not in vcols:
+                cur.execute(ddl)
+        db.commit()
+
         # 5. Crear tabla sucursales si no existe
         cur.execute("""CREATE TABLE IF NOT EXISTS sucursales (
             id_sucursal INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,7 +76,7 @@ def migrate_db():
         try:
             cur.execute("""
                 DELETE FROM categorias WHERE id_categoria NOT IN (
-                    SELECT MIN(id_categoria) FROM categorias GROUP BY nombre_categoria
+                    SELECT MIN(id_categoria) FROM categorias GROUP BY LOWER(nombre_categoria)
                 )
             """)
             # Eliminar variantes con tilde duplicadas (Espárragos vs Esparragos)
@@ -76,6 +84,45 @@ def migrate_db():
             db.commit()
         except Exception:
             pass
+
+        # 8a. Cliente "Consumidor Final" (9999999999): requerido por la FK
+        #     ventas.cedula_cliente → clientes de la BD heredada
+        try:
+            if not cur.execute("SELECT 1 FROM clientes WHERE cedula='9999999999'").fetchone():
+                ccols2 = [c['name'] for c in cur.execute("PRAGMA table_info(clientes)").fetchall()]
+                if 'telefono' in ccols2 and 'direccion' in ccols2:
+                    cur.execute("""INSERT INTO clientes (cedula, nombres, apellidos, telefono, direccion)
+                                   VALUES ('9999999999', 'Consumidor', 'Final', 'N/A', 'N/A')""")
+                else:
+                    cur.execute("""INSERT INTO clientes (cedula, nombres, apellidos)
+                                   VALUES ('9999999999', 'Consumidor', 'Final')""")
+                db.commit()
+        except Exception as e:
+            print(f"[migrate_db] Consumidor Final: {e}")
+
+        # 8b. La BD heredada exige ventas.id_empleado → empleados(id_empleado).
+        #     Crear en empleados una fila espejo por cada usuario que falte.
+        try:
+            if cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='empleados'").fetchone():
+                usuarios = cur.execute("SELECT id_usuario, nombre, email FROM usuario").fetchall()
+                for u in usuarios:
+                    if not cur.execute("SELECT 1 FROM empleados WHERE id_empleado=?", (u['id_usuario'],)).fetchone():
+                        partes = (u['nombre'] or 'Usuario').split(' ', 1)
+                        cur.execute("""INSERT INTO empleados
+                                       (id_empleado, cedula, nombres, apellidos, cargo,
+                                        telefono, email, id_local, fecha_contratacion, activo)
+                                       VALUES (?, ?, ?, ?, 'Vendedor', 'N/A', ?, 1, DATE('now'), 1)""",
+                                    (u['id_usuario'], f"USR-{u['id_usuario']}", partes[0],
+                                     partes[1] if len(partes) > 1 else 'N/A', u['email']))
+                db.commit()
+        except Exception as e:
+            print(f"[migrate_db] Espejo empleados: {e}")
+
+        # 8c. Eliminar trigger heredado que duplicaba el descuento de stock:
+        #     el código de finalizar_venta ya descuenta stock manualmente y el
+        #     trigger volvía a descontarlo (doble descuento en cada venta).
+        cur.execute("DROP TRIGGER IF EXISTS update_stock_after_venta")
+        db.commit()
 
         # 8. Crear tabla egresos si no existe
         cur.execute("""CREATE TABLE IF NOT EXISTS egresos (
@@ -170,6 +217,9 @@ def init_db():
         id_empleado INTEGER NOT NULL,
         id_sucursal INTEGER DEFAULT 1,
         fecha_venta TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        subtotal DECIMAL(10,2),
+        iva DECIMAL(10,2),
+        descuento DECIMAL(10,2) DEFAULT 0,
         total DECIMAL(10,2) NOT NULL,
         estado VARCHAR(20) DEFAULT 'completada',
         metodo_pago VARCHAR(30) DEFAULT 'Efectivo',

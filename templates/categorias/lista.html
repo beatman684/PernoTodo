@@ -55,6 +55,7 @@
               {% if cat.num_productos == 0 %}
               <form method="POST" action="{{ url_for('eliminar_categoria', id_categoria=cat.id_categoria) }}"
                     style="display:inline" onsubmit="return confirm('¿Eliminar «{{ cat.nombre_categoria }}»?')">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
                         style="background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.2);border-radius:7px;color:var(--err);padding:4px 10px;font-size:.78rem;cursor:pointer">
                   <i class="bi bi-trash"></i>

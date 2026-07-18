@@ -9,6 +9,7 @@
   <div class="card-header"><i class="bi bi-building me-2"></i>Registrar Nueva Sucursal</div>
   <div class="card-body">
     <form method="POST">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="mb-3">
         <label class="form-label">Nombre <span style="color:var(--err)">*</span></label>
         <input type="text" name="nombre" class="form-control" required

@@ -20,6 +20,7 @@
 <div class="col-md-8">
 <div style="background:var(--card);border:1px solid var(--bdr);border-radius:12px;padding:24px">
   <form method="POST" action="{{ url_for('editar_proveedor', id_proveedor=proveedor.id_proveedor) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="row g-3">
       <div class="col-md-4">
         <label style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);display:block;margin-bottom:4px">RUC <span style="color:var(--err)">*</span></label>

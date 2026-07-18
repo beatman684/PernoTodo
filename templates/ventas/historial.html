@@ -38,16 +38,26 @@
                         <td class="text-center">
                             <span class="badge
                                 {% if v.estado == 'completada' %}bg-success
-                                {% elif v.estado == 'cancelada' %}bg-danger
+                                {% elif v.estado in ('cancelada', 'anulada') %}bg-danger
                                 {% else %}bg-warning text-dark{% endif %}">
                                 {{ v.estado }}
                             </span>
                         </td>
                         <td class="text-center">
                             <a href="{{ url_for('ver_detalle_venta', id_venta=v.id_venta) }}"
-                               class="btn btn-sm btn-outline-info">
+                               class="btn btn-sm btn-outline-info" title="Ver detalle">
                                 <i class="bi bi-eye"></i>
                             </a>
+                            {% if user_role == 'Administrador' and v.estado == 'completada' %}
+                            <form method="post" action="{{ url_for('anular_venta', id_venta=v.id_venta) }}"
+                                  class="d-inline"
+                                  onsubmit="return confirm('¿Anular la venta #{{ v.id_venta }}? El stock será repuesto.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Anular venta">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                            </form>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}

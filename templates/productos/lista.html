@@ -149,6 +149,7 @@
                 <a href="{{ url_for('editar_producto', id_producto=p.id_producto) }}" class="tbl-btn edit" title="Editar"><i class="bi bi-pencil"></i></a>
                 <form action="{{ url_for('eliminar_producto', id_producto=p.id_producto) }}" method="POST" style="display:inline"
                       onsubmit="return confirm('¿Eliminar «{{ p.nombre_producto }}»?')">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="tbl-btn del"><i class="bi bi-trash"></i></button>
                 </form>
               </div>

@@ -1,8 +1,12 @@
+# Despliegue en Render.com
+# ⚠️ IMPORTANTE: la base de datos es SQLite en disco. Render SOLO ofrece
+# discos persistentes en planes pagos (starter o superior). Con "plan: free"
+# la base de datos SE BORRA en cada deploy o reinicio.
 services:
   - type: web
     name: perno-todo
     env: python
-    plan: free
+    plan: starter          # requerido para el disco persistente (ver nota arriba)
     buildCommand: |
       pip install -r requirements.txt
       python -c "from database.connection import init_db; init_db()"
@@ -12,6 +16,8 @@ services:
         value: "3.11.0"
       - key: SECRET_KEY
         generateValue: true
+      - key: IVA_PCT
+        value: "15"
     disk:
       name: perno-todo-db
       mountPath: /opt/render/project/src/database

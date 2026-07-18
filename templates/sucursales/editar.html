@@ -20,6 +20,7 @@
 <div class="col-md-7">
 <div style="background:var(--card);border:1px solid var(--bdr);border-radius:12px;padding:24px">
   <form method="POST" action="{{ url_for('editar_sucursal', id_sucursal=sucursal.id_sucursal) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <div style="margin-bottom:14px">
       <label style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);display:block;margin-bottom:4px">

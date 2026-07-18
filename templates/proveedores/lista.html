@@ -55,6 +55,7 @@
                 </a>
                 <form method="POST" action="{{ url_for('eliminar_proveedor', id_proveedor=p.id_proveedor) }}"
                       style="display:inline" onsubmit="return confirm('¿Eliminar «{{ p.nombre_empresa }}»?')">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit"
                           style="background:none;border:1px solid var(--bdr);border-radius:7px;color:var(--muted);padding:4px 9px;font-size:.78rem;cursor:pointer;transition:all .12s"
                           onmouseover="this.style.background='rgba(220,38,38,.08)';this.style.color='var(--err)'"

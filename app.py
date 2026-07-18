@@ -1,16 +1,35 @@
 import sqlite3
 import hashlib
+import hmac
 import os
+import secrets
+import time
 from collections import defaultdict
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
 from flask import (Flask, render_template, request, redirect,
                    url_for, flash, session, g, jsonify)
 from functools import wraps
+from werkzeug.security import generate_password_hash, check_password_hash
 from database.connection import get_db, init_db, migrate_db
 
+load_dotenv()
+
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'pt_S3cr3t_K3y_P3rn0T0d0_2024!')
+_secret = os.environ.get('SECRET_KEY')
+if not _secret:
+    # Sin SECRET_KEY en el entorno: se genera una temporal (las sesiones se
+    # invalidan al reiniciar). En producción SIEMPRE definir SECRET_KEY.
+    _secret = secrets.token_hex(32)
+    app.logger.warning('SECRET_KEY no definida en el entorno; usando clave temporal.')
+app.config['SECRET_KEY'] = _secret
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+# IVA vigente en Ecuador (%). Los precios de venta INCLUYEN IVA;
+# el sistema desglosa subtotal e IVA a partir del total.
+IVA_PCT = float(os.environ.get('IVA_PCT', '15'))
 
 _PREFIJOS = {
     'pernos': 'PER', 'tornillos': 'TOR', 'tuercas': 'TUE',
@@ -43,14 +62,77 @@ def _prefijo_cat(nombre):
     return letras[:3].ljust(3, 'X')
 
 
-def hash_password(p, length=24):
-    return hashlib.sha256(p.encode('utf-8')).hexdigest()[:length]
+def hash_password(p):
+    return generate_password_hash(p)
+
+
+def _legacy_hash(p):
+    # Formato antiguo: SHA-256 truncado a 24 caracteres (solo para compatibilidad)
+    return hashlib.sha256(p.encode('utf-8')).hexdigest()[:24]
+
+
+def verificar_password(stored, pwd):
+    """Devuelve (ok, es_legacy). Acepta hashes nuevos (werkzeug) y antiguos."""
+    if not stored:
+        return False, False
+    if ':' in stored:  # formato werkzeug: metodo:sal:hash / metodo$sal$hash
+        try:
+            return check_password_hash(stored, pwd), False
+        except Exception:
+            return False, False
+    if '$' in stored:
+        try:
+            return check_password_hash(stored, pwd), False
+        except Exception:
+            return False, False
+    return hmac.compare_digest(stored, _legacy_hash(pwd)), True
 
 
 def _safe_next(n):
     if n and n.startswith('/') and not n.startswith('//'):
         return n
     return url_for('dashboard')
+
+
+# ── LÍMITE DE INTENTOS DE LOGIN (anti fuerza bruta) ─────────────────────────
+_login_fails = defaultdict(list)   # clave → [timestamps de fallos]
+LOGIN_MAX_FAILS = 5
+LOGIN_WINDOW_S  = 300  # 5 minutos
+
+
+def _login_bloqueado(clave):
+    ahora = time.time()
+    _login_fails[clave] = [t for t in _login_fails[clave] if ahora - t < LOGIN_WINDOW_S]
+    return len(_login_fails[clave]) >= LOGIN_MAX_FAILS
+
+
+def _login_fallo(clave):
+    _login_fails[clave].append(time.time())
+
+
+# ── PROTECCIÓN CSRF ─────────────────────────────────────────────────────────
+def _csrf_token():
+    if '_csrf' not in session:
+        session['_csrf'] = secrets.token_hex(16)
+    return session['_csrf']
+
+
+@app.context_processor
+def inject_csrf():
+    return {'csrf_token': _csrf_token}
+
+
+@app.before_request
+def csrf_protect():
+    if request.method == 'POST':
+        token = session.get('_csrf', '')
+        enviado = request.form.get('csrf_token') or request.headers.get('X-CSRFToken', '')
+        if not token or not hmac.compare_digest(token, enviado):
+            if request.is_json or request.path.startswith('/api/'):
+                return jsonify({'success': False,
+                                'message': 'Sesión inválida o expirada. Recarga la página.'}), 400
+            flash('Sesión inválida o expirada. Intenta de nuevo.', 'danger')
+            return redirect(request.referrer or url_for('dashboard'))
 
 
 # ── MIDDLEWARE ──────────────────────────────────────────────────────────────
@@ -127,18 +209,29 @@ def login():
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
         pwd   = request.form.get('password', '')
-        db    = get_db()
-        user  = db.execute(
+        clave = f'{request.remote_addr}|{email}'
+        if _login_bloqueado(clave):
+            flash('Demasiados intentos fallidos. Espera 5 minutos.', 'danger')
+            return render_template('login.html')
+        db   = get_db()
+        user = db.execute(
             "SELECT * FROM usuario WHERE email=?", (email,)
         ).fetchone()
+        stored = user['password'] if user else None
+        ok, es_legacy = verificar_password(stored, pwd)
+        if ok and es_legacy:
+            # Migrar el hash antiguo al formato seguro de forma transparente
+            db.execute("UPDATE usuario SET password=? WHERE id_usuario=?",
+                       (hash_password(pwd), user['id_usuario']))
+            db.commit()
         db.close()
-        hashed = hash_password(pwd)
-        ucols  = list(user.keys()) if user else []
-        ok = user and (("password" in ucols and user["password"] == hashed) or ("password_hash" in ucols and user.get("password_hash") == hashed))
         if ok:
+            _login_fails.pop(clave, None)
             session.clear()
             session['email'] = user['email']
+            _csrf_token()
             return redirect(_safe_next(request.args.get('next')))
+        _login_fallo(clave)
         flash('Email o contraseña incorrectos.', 'danger')
     return render_template('login.html')
 
@@ -165,7 +258,7 @@ def dashboard():
         stats['bajo_stock']        = db.execute("SELECT COUNT(*) FROM productos WHERE stock_actual<stock_minimo").fetchone()[0]
         stats['total_proveedores'] = db.execute("SELECT COUNT(*) FROM proveedores").fetchone()[0]
         stats['total_clientes']    = db.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
-        r = db.execute("SELECT COUNT(*) c, COALESCE(SUM(total),0) s FROM ventas WHERE DATE(fecha_venta)=DATE('now')").fetchone()
+        r = db.execute("SELECT COUNT(*) c, COALESCE(SUM(total),0) s FROM ventas WHERE DATE(fecha_venta)=DATE('now') AND estado='completada'").fetchone()
         stats['ventas_hoy']   = r['c']
         stats['ingresos_hoy'] = r['s']
         stats['ventas_mes']   = db.execute(
@@ -178,7 +271,7 @@ def dashboard():
             "SELECT nombre_producto,stock_actual,stock_minimo FROM productos WHERE stock_actual<stock_minimo ORDER BY (stock_actual-stock_minimo) LIMIT 8"
         ).fetchall()
         ventas_7 = db.execute(
-            "SELECT DATE(fecha_venta) dia, SUM(total) total FROM ventas WHERE fecha_venta>=DATE('now','-6 days') GROUP BY dia ORDER BY dia"
+            "SELECT DATE(fecha_venta) dia, SUM(total) total FROM ventas WHERE fecha_venta>=DATE('now','-6 days') AND estado='completada' GROUP BY dia ORDER BY dia"
         ).fetchall()
         stats['ventas_7dias'] = [dict(r) for r in ventas_7]
         ultimas_ventas = db.execute(
@@ -303,38 +396,26 @@ def finalizar_venta():
                 )
             total_srv += float(row['precio_venta']) * int(item['cantidad'])
 
-        desc_monto  = total_srv * (descuento_pct / 100.0)
+        descuento_pct = min(max(descuento_pct, 0.0), 100.0)
+        desc_monto  = round(total_srv * (descuento_pct / 100.0), 2)
         total_final = round(total_srv - desc_monto, 2)
+        # Los precios incluyen IVA: desglosar subtotal (base imponible) e IVA
+        subtotal_base = round(total_final / (1 + IVA_PCT / 100.0), 2)
+        iva_monto     = round(total_final - subtotal_base, 2)
 
-        # ─── INSERT BULLETPROOF ────────────────────────────────────────────
-        # Detectar columnas disponibles para máxima compatibilidad con BD real
+        # La BD heredada tiene id_local NOT NULL sin default: incluirlo si existe
         vcols = [c['name'] for c in db.execute("PRAGMA table_info(ventas)").fetchall()]
-        has_id_local   = 'id_local'   in vcols
-        has_banco      = 'banco'      in vcols
-        has_id_sucursal = 'id_sucursal' in vcols
-
-        # Siempre incluir id_local=1 si la columna existe (es NOT NULL en la BD real)
-        if has_id_local:
-            cur = db.execute(
-                """INSERT INTO ventas
-                   (cedula_cliente, id_empleado, id_local, fecha_venta, total, estado, metodo_pago)
-                   VALUES (?, ?, 1, CURRENT_TIMESTAMP, ?, 'completada', ?)""",
-                (cedula, g.user['id_usuario'], total_final, metodo_pago)
-            )
-        else:
-            cur = db.execute(
-                """INSERT INTO ventas
-                   (cedula_cliente, id_empleado, fecha_venta, total, estado, metodo_pago)
-                   VALUES (?, ?, CURRENT_TIMESTAMP, ?, 'completada', ?)""",
-                (cedula, g.user['id_usuario'], total_final, metodo_pago)
-            )
+        extra_col = ', id_local, ' if 'id_local' in vcols else ', '
+        extra_val = ', 1, '        if 'id_local' in vcols else ', '
+        cur = db.execute(
+            f"""INSERT INTO ventas
+               (cedula_cliente, id_empleado, id_sucursal{extra_col}fecha_venta,
+                subtotal, iva, descuento, total, estado, metodo_pago, banco)
+               VALUES (?, ?, 1{extra_val}CURRENT_TIMESTAMP, ?, ?, ?, ?, 'completada', ?, ?)""",
+            (cedula, g.user['id_usuario'], subtotal_base, iva_monto,
+             desc_monto, total_final, metodo_pago, banco)
+        )
         id_venta = cur.lastrowid
-
-        # Actualizar columnas opcionales si existen
-        if has_banco and banco:
-            db.execute("UPDATE ventas SET banco=? WHERE id_venta=?", (banco, id_venta))
-        if has_id_sucursal:
-            db.execute("UPDATE ventas SET id_sucursal=1 WHERE id_venta=?", (id_venta,))
 
         # Insertar detalles y descontar stock
         for item in carrito:
@@ -364,6 +445,8 @@ def finalizar_venta():
 
         return jsonify({
             'success': True, 'id_venta': id_venta, 'total': total_final,
+            'subtotal': subtotal_base, 'iva': iva_monto, 'iva_pct': IVA_PCT,
+            'descuento': desc_monto,
             'nombre_cliente': nombre_cli, 'cedula_cliente': cedula,
             'metodo_pago': metodo_pago, 'banco': banco or '',
             'empleado': g.user['nombre'],
@@ -375,17 +458,18 @@ def finalizar_venta():
             try: db.rollback()
             except Exception: pass
         return jsonify({'success': False, 'message': str(e)}), 400
-    except sqlite3.Error as e:
+    except sqlite3.Error:
         if db:
             try: db.rollback()
             except Exception: pass
-        # Devolver el error REAL de SQLite para poder diagnosticarlo
-        return jsonify({'success': False, 'message': f'Error de base de datos: {str(e)}'}), 500
-    except Exception as e:
+        app.logger.exception('Error de BD al finalizar venta')
+        return jsonify({'success': False, 'message': 'Error de base de datos. Contacta al administrador.'}), 500
+    except Exception:
         if db:
             try: db.rollback()
             except Exception: pass
-        return jsonify({'success': False, 'message': f'Error inesperado: {str(e)}'}), 500
+        app.logger.exception('Error inesperado al finalizar venta')
+        return jsonify({'success': False, 'message': 'Error inesperado. Contacta al administrador.'}), 500
     finally:
         if db:
             try: db.close()
@@ -429,6 +513,42 @@ def ver_detalle_venta(id_venta):
         flash(f'Error: {e}', 'danger')
         return redirect(url_for('ver_historial_ventas'))
     return render_template('ventas/detalle.html', venta=venta, detalles=detalles, user_role=g.user.get('role'))
+
+
+@app.route('/ventas/anular/<int:id_venta>', methods=['POST'])
+@admin_required
+def anular_venta(id_venta):
+    db = None
+    try:
+        db = get_db()
+        venta = db.execute("SELECT id_venta, estado FROM ventas WHERE id_venta=?", (id_venta,)).fetchone()
+        if not venta:
+            flash('Venta no encontrada.', 'danger')
+            return redirect(url_for('ver_historial_ventas'))
+        if venta['estado'] != 'completada':
+            flash('Solo se pueden anular ventas completadas.', 'warning')
+            return redirect(url_for('ver_detalle_venta', id_venta=id_venta))
+        # Reponer stock de cada producto vendido
+        detalles = db.execute(
+            "SELECT id_producto, cantidad FROM detalle_venta WHERE id_venta=?", (id_venta,)
+        ).fetchall()
+        for d in detalles:
+            db.execute("UPDATE productos SET stock_actual=stock_actual+? WHERE id_producto=?",
+                       (d['cantidad'], d['id_producto']))
+        db.execute("UPDATE ventas SET estado='anulada' WHERE id_venta=?", (id_venta,))
+        db.commit()
+        flash(f'Venta #{id_venta} anulada y stock repuesto.', 'info')
+    except sqlite3.Error:
+        if db:
+            try: db.rollback()
+            except Exception: pass
+        app.logger.exception('Error al anular venta')
+        flash('Error al anular la venta.', 'danger')
+    finally:
+        if db:
+            try: db.close()
+            except Exception: pass
+    return redirect(url_for('ver_detalle_venta', id_venta=id_venta))
 
 
 # ── EGRESOS ─────────────────────────────────────────────────────────────────
@@ -530,6 +650,10 @@ def listar_productos():
             (*params, per_page, offset)
         ).fetchall()
         all_prods = db.execute("SELECT codigo_producto,nombre_producto,precio_venta,medida FROM productos ORDER BY nombre_producto").fetchall() if user_role=='Administrador' else []
+        cat_nombre = ''
+        if cat_id:
+            cat_row = db.execute("SELECT nombre_categoria FROM categorias WHERE id_categoria=?", (cat_id,)).fetchone()
+            if cat_row: cat_nombre = cat_row['nombre_categoria']
         db.close()
         total_pages = max(1, (total + per_page - 1) // per_page)
         import json
@@ -538,11 +662,6 @@ def listar_productos():
              'price': float(r['precio_venta']), 'medida': r['medida'] or ''}
             for r in all_prods
         ])
-        # Get category name if filtering by cat
-        cat_nombre = ''
-        if cat_id:
-            cat_row = db.execute("SELECT nombre_categoria FROM categorias WHERE id_categoria=?", (cat_id,)).fetchone()
-            if cat_row: cat_nombre = cat_row['nombre_categoria']
         return render_template('productos/lista.html',
                                productos=productos, query=q, page=page,
                                total_pages=total_pages, total_productos=total,
@@ -866,6 +985,11 @@ def editar_cliente(cedula):
 def eliminar_cliente(cedula):
     try:
         db = get_db()
+        n_ventas = db.execute("SELECT COUNT(*) FROM ventas WHERE cedula_cliente=?", (cedula,)).fetchone()[0]
+        if n_ventas:
+            db.close()
+            flash(f'No se puede eliminar: el cliente tiene {n_ventas} venta(s) registrada(s).', 'danger')
+            return redirect(url_for('listar_clientes'))
         db.execute("DELETE FROM clientes WHERE cedula=?", (cedula,))
         db.commit()
         db.close()
@@ -899,8 +1023,19 @@ def agregar_usuario():
             if db.execute("SELECT 1 FROM usuario WHERE email=?", (f['email'],)).fetchone():
                 flash('Email ya registrado.', 'warning')
                 return render_template('usuarios/agregar.html', roles=roles, form_data=f)
-            db.execute("INSERT INTO usuario (email,password,nombre,role) VALUES (?,?,?,?)",
-                       (f['email'].strip().lower(), hash_password(f['password']), f['nombre'], f['role']))
+            cur = db.execute("INSERT INTO usuario (email,password,nombre,role) VALUES (?,?,?,?)",
+                             (f['email'].strip().lower(), hash_password(f['password']), f['nombre'], f['role']))
+            nuevo_id = cur.lastrowid
+            # La BD heredada exige ventas.id_empleado → empleados: crear fila espejo
+            if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='empleados'").fetchone():
+                if not db.execute("SELECT 1 FROM empleados WHERE id_empleado=?", (nuevo_id,)).fetchone():
+                    partes = f['nombre'].split(' ', 1)
+                    db.execute("""INSERT INTO empleados
+                                  (id_empleado, cedula, nombres, apellidos, cargo,
+                                   telefono, email, id_local, fecha_contratacion, activo)
+                                  VALUES (?, ?, ?, ?, 'Vendedor', 'N/A', ?, 1, DATE('now'), 1)""",
+                               (nuevo_id, f'USR-{nuevo_id}', partes[0],
+                                partes[1] if len(partes) > 1 else 'N/A', f['email'].strip().lower()))
             db.commit()
             flash(f'Usuario «{f["nombre"]}» creado.', 'success')
             return redirect(url_for('listar_usuarios'))
@@ -933,11 +1068,18 @@ def eliminar_usuario(id_usuario):
     if g.user['id_usuario'] == id_usuario:
         flash('No puedes eliminarte a ti mismo.', 'danger')
         return redirect(url_for('listar_usuarios'))
-    db = get_db()
-    db.execute("DELETE FROM usuario WHERE id_usuario=?", (id_usuario,))
-    db.commit()
-    db.close()
-    flash('Usuario eliminado.', 'info')
+    try:
+        db = get_db()
+        db.execute("DELETE FROM usuario WHERE id_usuario=?", (id_usuario,))
+        db.commit()
+        flash('Usuario eliminado.', 'info')
+    except sqlite3.IntegrityError:
+        flash('No se puede eliminar: el usuario tiene ventas registradas.', 'danger')
+    except sqlite3.Error as e:
+        flash(f'Error: {e}', 'danger')
+    finally:
+        try: db.close()
+        except Exception: pass
     return redirect(url_for('listar_usuarios'))
 
 
@@ -1110,9 +1252,6 @@ def generar_reportes():
 def listar_categorias():
     try:
         db = get_db()
-        # Limpiar duplicados
-        db.execute("DELETE FROM categorias WHERE id_categoria NOT IN (SELECT MIN(id_categoria) FROM categorias GROUP BY LOWER(nombre_categoria))")
-        db.commit()
         cats = db.execute(
             "SELECT c.*,COUNT(p.id_producto) num_productos FROM categorias c LEFT JOIN productos p ON c.id_categoria=p.id_categoria GROUP BY c.id_categoria ORDER BY c.nombre_categoria"
         ).fetchall()

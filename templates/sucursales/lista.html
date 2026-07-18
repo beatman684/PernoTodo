@@ -74,6 +74,7 @@
           {% if not s.es_matriz %}
           <form method="POST" action="{{ url_for('eliminar_sucursal', id_sucursal=s.id_sucursal) }}"
                 style="display:inline" onsubmit="return confirm('¿Eliminar sucursal «{{ s.nombre }}»?')">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit"
                     style="background:var(--card2);border:1px solid rgba(220,38,38,.25);border-radius:8px;color:var(--err);padding:7px 12px;font-size:.82rem;cursor:pointer"
                     title="Eliminar">

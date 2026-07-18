@@ -51,6 +51,7 @@
     </div>
     <div class="card-body">
       <form method="POST" action="{{ url_for('agregar_egreso') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">
           <div>
             <label class="form-label">Categoría <span style="color:var(--err)">*</span></label>
@@ -144,6 +145,7 @@
             <td class="text-center">
               <form method="POST" action="{{ url_for('eliminar_egreso', id_egreso=e.id_egreso) }}"
                     style="display:inline" onsubmit="return confirm('¿Eliminar este egreso?')">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
                         style="background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.2);border-radius:7px;color:var(--err);padding:4px 9px;font-size:.78rem;cursor:pointer">
                   <i class="bi bi-trash"></i>

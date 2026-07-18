@@ -5,7 +5,17 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2><i class="bi bi-receipt-cutoff text-info"></i> Nota de Venta #{{ venta.id_venta }}</h2>
     <div>
-        <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
+        {% if user_role == 'Administrador' and venta.estado == 'completada' %}
+        <form method="post" action="{{ url_for('anular_venta', id_venta=venta.id_venta) }}"
+              class="d-inline no-print"
+              onsubmit="return confirm('¿Anular la venta #{{ venta.id_venta }}? El stock de los productos será repuesto.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-x-circle"></i> Anular Venta
+            </button>
+        </form>
+        {% endif %}
+        <button onclick="window.print()" class="btn btn-outline-secondary btn-sm ms-1">
             <i class="bi bi-printer"></i> Imprimir
         </button>
         <a href="{{ url_for('ver_historial_ventas') }}" class="btn btn-secondary btn-sm ms-1">
@@ -72,6 +82,22 @@
                     {% endfor %}
                 </tbody>
                 <tfoot class="table-dark">
+                    {% if venta.descuento and venta.descuento > 0 %}
+                    <tr>
+                        <td colspan="4" class="text-end">Descuento:</td>
+                        <td class="text-end">-${{ "%.2f"|format(venta.descuento) }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if venta.subtotal %}
+                    <tr>
+                        <td colspan="4" class="text-end">Subtotal (base imponible):</td>
+                        <td class="text-end">${{ "%.2f"|format(venta.subtotal) }}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="4" class="text-end">IVA:</td>
+                        <td class="text-end">${{ "%.2f"|format(venta.iva) }}</td>
+                    </tr>
+                    {% endif %}
                     <tr>
                         <td colspan="4" class="text-end fw-bold fs-5">TOTAL:</td>
                         <td class="text-end fw-bold fs-5">${{ "%.2f"|format(venta.total) }}</td>

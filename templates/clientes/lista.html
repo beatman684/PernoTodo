@@ -71,6 +71,7 @@
                 {% if user_role == 'Administrador' %}
                 <form method="POST" action="{{ url_for('eliminar_cliente', cedula=c.cedula) }}"
                       style="display:inline" onsubmit="return confirm('¿Eliminar «{{ c.nombres }} {{ c.apellidos }}»?')">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit"
                           style="background:none;border:1px solid var(--bdr);border-radius:7px;color:var(--muted);padding:4px 9px;font-size:.78rem;cursor:pointer;transition:all .12s"
                           onmouseover="this.style.background='rgba(220,38,38,.08)';this.style.color='var(--err)'"
