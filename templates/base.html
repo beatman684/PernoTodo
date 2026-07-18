@@ -40,6 +40,9 @@ body{background:var(--bg);color:var(--txt);font-family:'Segoe UI',system-ui,sans
 .sl i{font-size:.95rem;flex-shrink:0;width:17px;text-align:center}
 .sl:hover{background:rgba(255,255,255,.07);color:#fff}
 .sl.active{background:var(--acc);color:#fff;font-weight:600}
+.sl-cierre{background:rgba(220,38,38,.14);color:#f87171;font-weight:800;border:1px solid rgba(220,38,38,.35);letter-spacing:.5px}
+.sl-cierre:hover{background:#dc2626;color:#fff}
+.sl-cierre.active{background:#dc2626;color:#fff}
 .sl .sbdg{margin-left:auto;background:rgba(239,68,68,.2);color:#f87171;font-size:.6rem;font-weight:700;padding:2px 7px;border-radius:20px}
 .sl .sbdg.ok{background:rgba(52,211,153,.15);color:#34d399}
 .sb-foot{padding:12px 14px;border-top:1px solid rgba(255,255,255,.07)}
@@ -132,6 +135,9 @@ body{background:var(--bg);color:var(--txt);font-family:'Segoe UI',system-ui,sans
     </a>
     <a href="{{ url_for('listar_egresos') }}" class="sl {% if 'egreso' in (request.endpoint or '') %}active{% endif %}">
       <i class="bi bi-arrow-down-circle"></i> Egresos / Gastos
+    </a>
+    <a href="{{ url_for('cierre_dia') }}" class="sl sl-cierre {% if request.endpoint=='cierre_dia' %}active{% endif %}">
+      <i class="bi bi-journal-check"></i> CIERRE DEL DÍA
     </a>
 
     <div class="sb-sec">Inventario</div>

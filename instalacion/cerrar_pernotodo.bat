@@ -8,12 +8,19 @@ echo   ==========================================================
 echo      CIERRE DEL SISTEMA PERNO TODO
 echo   ==========================================================
 echo.
-echo   Este proceso hara la copia de seguridad del dia y
-echo   APAGARA la computadora.
+echo   Este proceso imprimira el CIERRE DEL DIA, hara la copia
+echo   de seguridad y APAGARA la computadora.
 echo.
 choice /c SN /t 15 /d S /m "  Continuar? (S=si / N=no) - automatico en 15 seg "
 if errorlevel 2 exit /b 0
 
+cls
+echo.
+echo   Abriendo el Cierre del Dia para imprimir...
+start "" "http://localhost:5000/cierre_dia?imprimir=1"
+echo.
+echo   Imprime el reporte (o cancela la impresion si no lo necesitas).
+pause
 cls
 echo.
 echo   ==========================================================

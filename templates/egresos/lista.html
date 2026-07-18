@@ -132,7 +132,7 @@
         <tbody>
           {% for e in egresos %}
           <tr>
-            <td style="font-size:.8rem;color:var(--muted);white-space:nowrap">{{ e.fecha[:16] if e.fecha else '—' }}</td>
+            <td style="font-size:.8rem;color:var(--muted);white-space:nowrap">{{ e.fecha_local or (e.fecha[:16] if e.fecha else '—') }}</td>
             <td><span class="cat-chip">{{ e.categoria }}</span></td>
             <td style="font-size:.87rem;color:var(--txt)">{{ e.descripcion }}</td>
             <td style="font-size:.82rem;color:var(--muted)">{{ e.nombre_empresa or '—' }}</td>

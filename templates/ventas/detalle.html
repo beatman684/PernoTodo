@@ -31,7 +31,7 @@
             <div class="card-body">
                 <table class="table table-sm table-borderless mb-0">
                     <tr><th>Número:</th><td>#{{ venta.id_venta }}</td></tr>
-                    <tr><th>Fecha:</th><td>{{ venta.fecha_venta }}</td></tr>
+                    <tr><th>Fecha:</th><td>{{ venta.fecha_local or venta.fecha_venta }}</td></tr>
                     <tr><th>Estado:</th>
                         <td><span class="badge {% if venta.estado == 'completada' %}bg-success{% else %}bg-danger{% endif %}">
                             {{ venta.estado }}</span>
