@@ -72,18 +72,31 @@ def migrate_db():
             cur.execute("INSERT INTO sucursales (id_sucursal,nombre,es_matriz,activa) VALUES (1,'Matriz',1,1)")
             db.commit()
 
-        # 7. Limpiar categorías duplicadas (problema conocido en BD existente)
+        # 7. Limpiar categorías duplicadas: la tabla heredada NO tiene UNIQUE,
+        #    así que cada arranque re-insertaba las semillas. Se reasignan los
+        #    productos a la categoría canónica (menor id), se borran los
+        #    duplicados y se crea el índice UNIQUE que evita que vuelva a pasar.
         try:
-            cur.execute("""
-                DELETE FROM categorias WHERE id_categoria NOT IN (
-                    SELECT MIN(id_categoria) FROM categorias GROUP BY LOWER(nombre_categoria)
-                )
-            """)
-            # Eliminar variantes con tilde duplicadas (Espárragos vs Esparragos)
-            cur.execute("DELETE FROM categorias WHERE nombre_categoria IN ('Espárragos','Esparragos') AND id_categoria NOT IN (SELECT MIN(id_categoria) FROM categorias WHERE nombre_categoria IN ('Espárragos','Esparragos'))")
+            import unicodedata
+
+            def _norm(s):
+                s = unicodedata.normalize('NFD', (s or '').strip().lower())
+                return ''.join(ch for ch in s if unicodedata.category(ch) != 'Mn')
+
+            grupos = {}
+            for cid, nombre in cur.execute("SELECT id_categoria, nombre_categoria FROM categorias ORDER BY id_categoria"):
+                grupos.setdefault(_norm(nombre), []).append(cid)
+            for ids in grupos.values():
+                if len(ids) > 1:
+                    canonico, duplicados = ids[0], ids[1:]
+                    marcas = ','.join('?' * len(duplicados))
+                    cur.execute(f"UPDATE productos SET id_categoria=? WHERE id_categoria IN ({marcas})",
+                                (canonico, *duplicados))
+                    cur.execute(f"DELETE FROM categorias WHERE id_categoria IN ({marcas})", duplicados)
+            cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_categorias_nombre ON categorias(nombre_categoria)")
             db.commit()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[migrate_db] Dedup categorías: {e}")
 
         # 8a. Cliente "Consumidor Final" (9999999999): requerido por la FK
         #     ventas.cedula_cliente → clientes de la BD heredada

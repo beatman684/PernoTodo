@@ -2,6 +2,7 @@ import sqlite3
 import hashlib
 import hmac
 import os
+import re
 import secrets
 import time
 from collections import defaultdict
@@ -774,33 +775,67 @@ def eliminar_producto(id_producto):
 
 
 # ── APIs PRODUCTO ───────────────────────────────────────────────────────────
+def _letra_rosca(tipo):
+    """Letra de serie según el tipo de rosca: Fina→F, Gruesa→G, Milimétrica→M…"""
+    t = (tipo or '').strip().lower()
+    if not t or t in ('n/a', 'na', 'sin rosca', 'ninguna', '-'):
+        return ''
+    if 'fina' in t or 'unf' in t:
+        return 'F'
+    if 'gruesa' in t or 'unc' in t:
+        return 'G'
+    if 'milim' in t or 'metric' in t or 'métric' in t:
+        return 'M'
+    if 'ordinar' in t or 'estandar' in t or 'estándar' in t:
+        return 'O'
+    return t[0].upper() if t[0].isalpha() else ''
+
+
 @app.route('/api/next_code')
 @admin_required
 def api_next_code():
+    """Genera el siguiente código de la serie categoría+rosca (ej: PER-F3) y
+    devuelve los códigos ya usados en esa serie para mantener el orden."""
     id_cat = request.args.get('id_categoria', '').strip()
-    if not id_cat:
-        return jsonify({'codigo': 'OTR-001', 'prefijo': 'OTR'})
-    db  = get_db()
-    cat = db.execute("SELECT nombre_categoria FROM categorias WHERE id_categoria=?", (id_cat,)).fetchone()
-    if not cat:
-        db.close()
-        return jsonify({'codigo': 'OTR-001', 'prefijo': 'OTR'})
-    pref = _prefijo_cat(cat['nombre_categoria'])
-    rows = db.execute("SELECT codigo_producto FROM productos WHERE codigo_producto LIKE ? ORDER BY codigo_producto", (f'{pref}-%',)).fetchall()
+    rosca  = request.args.get('tipo_rosca', '').strip()
+    pref   = 'OTR'
+    db = get_db()
+    if id_cat:
+        cat = db.execute("SELECT nombre_categoria FROM categorias WHERE id_categoria=?", (id_cat,)).fetchone()
+        if cat:
+            pref = _prefijo_cat(cat['nombre_categoria'])
+    letra = _letra_rosca(rosca)
+    rows = db.execute(
+        "SELECT codigo_producto, nombre_producto, medida, tipo_rosca FROM productos WHERE codigo_producto LIKE ?",
+        (f'{pref}-%',)
+    ).fetchall()
     db.close()
-    max_n = 0
+    if letra:
+        patron = re.compile(rf'^{re.escape(pref)}-{letra}(\d+)$', re.IGNORECASE)
+    else:
+        patron = re.compile(rf'^{re.escape(pref)}-(\d+)$')
+    serie, max_n = [], 0
     for r in rows:
-        parts = r['codigo_producto'].split('-')
-        if len(parts) >= 2 and parts[-1].isdigit():
-            max_n = max(max_n, int(parts[-1]))
-    return jsonify({'codigo': f'{pref}-{str(max_n+1).zfill(3)}', 'prefijo': pref})
+        m = patron.match(r['codigo_producto'])
+        if m:
+            n = int(m.group(1))
+            max_n = max(max_n, n)
+            serie.append({'n': n, 'codigo': r['codigo_producto'],
+                          'medida': r['medida'] or '', 'nombre': r['nombre_producto']})
+    serie.sort(key=lambda x: x['n'])
+    if letra:
+        codigo = f'{pref}-{letra}{max_n + 1}'
+    else:
+        codigo = f'{pref}-{str(max_n + 1).zfill(3)}'
+    return jsonify({'codigo': codigo, 'prefijo': pref, 'letra': letra,
+                    'serie': serie[-15:]})
 
 
 @app.route('/api/agregar_categoria', methods=['POST'])
 @admin_required
 def api_agregar_categoria():
     data   = request.get_json(silent=True) or {}
-    nombre = data.get('nombre', '').strip()
+    nombre = (data.get('nombre') or data.get('nombre_categoria') or '').strip()
     if not nombre:
         return jsonify({'success': False, 'message': 'Nombre requerido.'}), 400
     try:
@@ -809,7 +844,8 @@ def api_agregar_categoria():
         db.commit()
         row = db.execute("SELECT id_categoria FROM categorias WHERE nombre_categoria=?", (nombre,)).fetchone()
         db.close()
-        return jsonify({'success': True, 'id_categoria': row['id_categoria'], 'nombre': nombre, 'prefijo': _prefijo_cat(nombre)})
+        return jsonify({'success': True, 'id_categoria': row['id_categoria'], 'nombre': nombre,
+                        'nombre_categoria': nombre, 'prefijo': _prefijo_cat(nombre)})
     except sqlite3.IntegrityError:
         return jsonify({'success': False, 'message': f'La categoría «{nombre}» ya existe.'}), 409
     except sqlite3.Error as e:
