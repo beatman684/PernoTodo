@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+{% block title %}Agregar Producto — PERNO TODO{% endblock %}
+{% block page_title %}<i class="bi bi-plus-circle me-2" style="color:var(--ok)"></i>Agregar Producto{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<style>
+.form-card{background:var(--card);border:1px solid var(--bdr);border-radius:12px;padding:22px 24px;margin-bottom:16px}
+.sec-title{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--acc);margin-bottom:14px;display:flex;align-items:center;gap:7px}
+.fg{margin-bottom:13px}
+.fg label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);display:block;margin-bottom:4px}
+.fg label span.req{color:var(--err)}
+.fi,.fs{width:100%;padding:9px 12px;background:var(--card2);border:1px solid var(--bdr);border-radius:8px;color:var(--txt);font-size:.88rem;outline:none;transition:border-color .2s}
+.fi:focus,.fs:focus{border-color:var(--acc)}
+.fi::placeholder{color:var(--muted)}
+.fs option{background:var(--card);color:var(--txt)}
+.fi.is-invalid,.fs.is-invalid{border-color:var(--err)}
+.price-group{display:flex;align-items:center;background:var(--card2);border:1px solid var(--bdr);border-radius:8px;overflow:hidden}
+.price-prefix{padding:9px 10px;color:var(--muted);font-size:.88rem;flex-shrink:0;border-right:1px solid var(--bdr);background:var(--abg)}
+.price-inp{border:none!important;background:transparent!important;border-radius:0!important;flex:1;padding:9px 10px;color:var(--txt);font-size:.88rem;outline:none}
+.price-group:focus-within{border-color:var(--acc)}
+
+/* Columnas inline para la nueva categoria */
+.inline-cat{display:flex;gap:6px;margin-top:8px}
+.inline-cat input{flex:1;padding:7px 10px;background:var(--card2);border:1px solid var(--bdr);border-radius:7px;color:var(--txt);font-size:.82rem;outline:none}
+.inline-cat button{background:var(--acc);border:none;border-radius:7px;color:#fff;padding:7px 13px;font-size:.78rem;font-weight:700;cursor:pointer}
+
+/* Preview etiqueta */
+.lbl-preview{background:white;border-radius:10px;padding:16px;text-align:center;border:1.5px dashed #d1d5db;font-family:sans-serif;min-height:100px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.lbl-placeholder{color:#9ca3af;font-size:.78rem}
+.btn-print-lbl{background:var(--acc);border:none;border-radius:9px;color:#fff;padding:9px 18px;font-size:.83rem;font-weight:700;cursor:pointer;width:100%;margin-top:10px;display:none}
+.btn-print-lbl:hover{opacity:.88}
+
+@media print{
+  body *{visibility:hidden!important}
+  #prnZone,#prnZone *{visibility:visible!important}
+  #prnZone{position:fixed;top:0;left:0;width:62mm;height:38mm;background:white;padding:2.5mm;font-family:sans-serif;text-align:center;display:flex!important;flex-direction:column;align-items:center;justify-content:center}
+  .pco{font-size:5.5pt;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#374151}
+  .pnm{font-size:6.5pt;font-weight:600;margin:1.5mm 0 1mm;line-height:1.2;color:#111;max-width:56mm;text-align:center}
+  .pmd{font-size:5.5pt;color:#6b7280;margin-bottom:1mm}
+  .ppr{font-size:10pt;font-weight:800;color:#000}
+  .pcd{font-size:5.5pt;color:#9ca3af;font-family:monospace;margin-top:1mm}
+  #prnZone svg{max-width:100%;height:auto}
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2 style="font-size:1.4rem;font-weight:800;color:var(--txt);margin:0">Agregar Producto</h2>
+    <p style="color:var(--muted);font-size:.82rem;margin:3px 0 0">Nuevo ítem en el inventario</p>
+  </div>
+  <a href="{{ url_for('listar_productos') }}"
+     style="background:var(--card2);border:1px solid var(--bdr);border-radius:9px;color:var(--txt);padding:8px 14px;font-size:.83rem;font-weight:600;text-decoration:none">
+    <i class="bi bi-arrow-left me-1"></i>Volver
+  </a>
+</div>
+
+<form method="POST" action="{{ url_for('agregar_producto') }}" id="prodForm">
+<div class="row g-3">
+
+  <!-- COL IZQUIERDA -->
+  <div class="col-lg-8">
+
+    <!-- INFO BÁSICA -->
+    <div class="form-card">
+      <div class="sec-title"><i class="bi bi-tag"></i> Información Básica</div>
+      <div class="fg">
+        <label>Nombre del Producto <span class="req">*</span></label>
+        <input type="text" name="nombre_producto" id="inNombre" class="fi" required
+               placeholder="Ej: Perno hexagonal 1/2&quot; grado 5"
+               value="{{ form_data.nombre_producto if form_data else '' }}"
+               oninput="updatePreview()">
+      </div>
+      <div class="fg">
+        <label>Descripción</label>
+        <textarea name="descripcion" class="fi" rows="2"
+                  placeholder="Detalles adicionales, acabado, aplicación...">{{ form_data.descripcion if form_data else '' }}</textarea>
+      </div>
+    </div>
+
+    <!-- CLASIFICACIÓN -->
+    <div class="form-card">
+      <div class="sec-title"><i class="bi bi-grid"></i> Clasificación</div>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="fg">
+            <label>Categoría <span class="req">*</span></label>
+            <select name="id_categoria" id="inCat" class="fs" required onchange="onCatChange()">
+              <option value="">Seleccione una categoría…</option>
+              {% for c in categorias %}
+              <option value="{{ c.id_categoria }}"
+                      data-prefix="{{ c.nombre_categoria[:3]|upper }}"
+                      {% if form_data and form_data.id_categoria|string == c.id_categoria|string %}selected{% endif %}>
+                {{ c.nombre_categoria }}
+              </option>
+              {% endfor %}
+            </select>
+            <div class="inline-cat">
+              <input id="newCatInp" placeholder="Nueva categoría…">
+              <button type="button" onclick="addCat()">+ Agregar</button>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="fg">
+            <label>Proveedor</label>
+            <select name="id_proveedor" class="fs">
+              <option value="">Sin proveedor</option>
+              {% for p in proveedores %}
+              <option value="{{ p.id_proveedor }}"
+                      {% if form_data and form_data.id_proveedor|string == p.id_proveedor|string %}selected{% endif %}>
+                {{ p.nombre_empresa }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ESPECIFICACIONES TÉCNICAS -->
+    <div class="form-card">
+      <div class="sec-title"><i class="bi bi-gear"></i> Especificaciones Técnicas</div>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="fg">
+            <label>Material <span class="req">*</span></label>
+            <input type="text" name="material" class="fi" required placeholder="Acero, Inox, Nylon…"
+                   value="{{ form_data.material if form_data else '' }}">
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="fg">
+            <label>Tipo de Rosca</label>
+            <input type="text" name="tipo_rosca" class="fi" placeholder="Gruesa (UNC), Fina (UNF)…"
+                   value="{{ form_data.tipo_rosca if form_data else '' }}">
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="fg">
+            <label>Unidad de Medida</label>
+            <input type="text" name="unidad_medida" class="fi" placeholder="Unidad, kg, caja…"
+                   value="{{ form_data.unidad_medida if form_data else 'Unidad' }}">
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="fg">
+            <label>Medida Específica <span class="req">*</span></label>
+            <input type="text" name="medida" id="inMedida" class="fi" required placeholder="1/2&quot;, M8, 3/4&quot;…"
+                   value="{{ form_data.medida if form_data else '' }}"
+                   oninput="updatePreview()">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRECIOS E INVENTARIO -->
+    <div class="form-card">
+      <div class="sec-title"><i class="bi bi-currency-dollar"></i> Precios e Inventario</div>
+      <div class="row g-3">
+        <div class="col-md-3">
+          <div class="fg">
+            <label>Precio de Compra <span class="req">*</span></label>
+            <div class="price-group">
+              <span class="price-prefix">$</span>
+              <input type="number" name="precio_compra" id="inPCompra" class="price-inp" required
+                     step="0.01" min="0" placeholder="0.00"
+                     value="{{ form_data.precio_compra if form_data else '' }}"
+                     oninput="autoVenta()">
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="fg">
+            <label>Precio de Venta <span class="req">*</span></label>
+            <div class="price-group">
+              <span class="price-prefix">$</span>
+              <input type="number" name="precio_venta" id="inPVenta" class="price-inp" required
+                     step="0.01" min="0" placeholder="0.00"
+                     value="{{ form_data.precio_venta if form_data else '' }}"
+                     oninput="updatePreview()">
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="fg">
+            <label>Stock Inicial <span class="req">*</span></label>
+            <input type="number" name="stock_actual" class="fi" required min="0" placeholder="0"
+                   value="{{ form_data.stock_actual if form_data else '0' }}">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="fg">
+            <label>Stock Mínimo <span class="req">*</span></label>
+            <input type="number" name="stock_minimo" class="fi" required min="0" placeholder="10"
+                   value="{{ form_data.stock_minimo if form_data else '10' }}">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTONES -->
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-primary px-4 fw-bold">
+        <i class="bi bi-check-circle me-2"></i>Guardar Producto
+      </button>
+      <a href="{{ url_for('listar_productos') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-x-circle me-1"></i>Cancelar
+      </a>
+    </div>
+
+  </div><!-- /col-8 -->
+
+  <!-- COL DERECHA -->
+  <div class="col-lg-4">
+
+    <!-- CÓDIGO -->
+    <div class="form-card">
+      <div class="sec-title"><i class="bi bi-upc-scan"></i> Código de Producto</div>
+      <div style="background:var(--card2);border-radius:9px;padding:14px;margin-bottom:12px;text-align:center">
+        <div style="font-size:.65rem;color:var(--muted);margin-bottom:4px">Código asignado</div>
+        <div id="codigoDisplay" style="font-size:1.1rem;font-weight:800;color:var(--acc);font-family:monospace">
+          — Selecciona categoría
+        </div>
+      </div>
+      <p style="font-size:.72rem;color:var(--muted);margin-bottom:10px">
+        El código se genera automáticamente al seleccionar la categoría. Puedes editarlo.
+      </p>
+      <div class="fg">
+        <label>Código manual (opcional)</label>
+        <input type="text" name="codigo_producto" id="inCodigo" class="fi"
+               placeholder="Ej: PER-099" style="font-family:monospace"
+               value="{{ form_data.codigo_producto if form_data else '' }}"
+               oninput="updatePreview()">
+      </div>
+    </div>
+
+    <!-- ETIQUETA PREVIEW -->
+    <div class="form-card">
+      <div class="sec-title"><i class="bi bi-tag"></i> Vista Previa Etiqueta</div>
+      <div class="lbl-preview" id="lblPrev">
+        <div class="lbl-placeholder">Ingresa el nombre y selecciona categoría para ver la etiqueta</div>
+      </div>
+      <div class="d-flex gap-2 mt-2">
+        <label style="font-size:.78rem;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:5px">
+          <input type="checkbox" id="chkPrecio" checked onchange="updatePreview()"> Con precio
+        </label>
+      </div>
+      <button type="button" class="btn-print-lbl" id="btnPrintLbl" onclick="printLbl()">
+        <i class="bi bi-printer me-2"></i>Imprimir Etiqueta
+      </button>
+    </div>
+
+  </div><!-- /col-4 -->
+</div>
+</form>
+
+<!-- Print zone -->
+<div id="prnZone" style="display:none">
+  <div class="pco">⚙ PERNO TODO</div>
+  <div class="pnm" id="prnNom"></div>
+  <div class="pmd" id="prnMed"></div>
+  <svg id="prnBc"></svg>
+  <div class="ppr" id="prnPrc" style="display:none"></div>
+  <div class="pcd" id="prnCod"></div>
+</div>
+
+{% if flash_msgs %}
+{% for cat, msg in flash_msgs %}
+<div class="alert alert-{{ 'danger' if cat == 'danger' else 'success' }} mt-3">{{ msg }}</div>
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const API_NEXT = "{{ url_for('api_next_code') }}";
+const API_CAT  = "{{ url_for('api_agregar_categoria') }}";
+
+async function onCatChange(){
+  const sel=document.getElementById('inCat');
+  const opt=sel.options[sel.selectedIndex];
+  if(!sel.value) return;
+  try{
+    const r=await fetch(`${API_NEXT}?id_categoria=${sel.value}`);
+    const d=await r.json();
+    const cod=document.getElementById('inCodigo');
+    if(!cod.value||cod.dataset.auto==='1'){cod.value=d.codigo;cod.dataset.auto='1';}
+    document.getElementById('codigoDisplay').textContent=d.codigo;
+    updatePreview();
+  }catch(e){}
+}
+
+async function addCat(){
+  const inp=document.getElementById('newCatInp');
+  const nombre=inp.value.trim();
+  if(!nombre)return;
+  try{
+    const r=await fetch(API_CAT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre_categoria:nombre})});
+    const d=await r.json();
+    if(d.success){
+      const sel=document.getElementById('inCat');
+      const opt=document.createElement('option');
+      opt.value=d.id_categoria;opt.textContent=d.nombre_categoria;
+      sel.appendChild(opt);sel.value=d.id_categoria;
+      inp.value='';onCatChange();
+    } else alert(d.message||'Error');
+  }catch(e){alert('Error de conexión');}
+}
+
+function autoVenta(){
+  const co=parseFloat(document.getElementById('inPCompra').value)||0;
+  const v=document.getElementById('inPVenta');
+  if(co>0) v.value=(co*1.60).toFixed(2); // 60% markup siempre
+  updatePreview();
+}
+
+function updatePreview(){
+  const nom=document.getElementById('inNombre').value.trim();
+  const cod=document.getElementById('inCodigo').value.trim();
+  const med=document.getElementById('inMedida').value.trim();
+  const prc=parseFloat(document.getElementById('inPVenta').value)||0;
+  const wp=document.getElementById('chkPrecio').checked;
+  const prev=document.getElementById('lblPrev');
+  if(!nom&&!cod){prev.innerHTML='<div class="lbl-placeholder">Ingresa el nombre y selecciona categoría para ver la etiqueta</div>';document.getElementById('btnPrintLbl').style.display='none';return;}
+  prev.innerHTML=`
+    <div style="font-size:.58rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#374151">⚙ PERNO TODO</div>
+    <div style="font-size:.8rem;font-weight:600;color:#111;margin:4px 0 6px;line-height:1.3;max-width:200px">${nom}</div>
+    ${med?`<div style="font-size:.65rem;color:#6b7280;margin-bottom:4px">${med}</div>`:''}
+    <svg id="prevBc" style="max-width:180px"></svg>
+    ${wp&&prc?`<div style="font-size:1.1rem;font-weight:800;color:#000;margin-top:4px">$${prc.toFixed(2)}</div>`:''}
+    <div style="font-size:.58rem;color:#9ca3af;margin-top:2px;font-family:monospace">${cod||'—'}</div>`;
+  if(cod){
+    try{JsBarcode('#prevBc',cod,{format:'CODE128',width:1.8,height:44,displayValue:false,margin:3,background:'#ffffff',lineColor:'#000000'});}catch(e){}
+  }
+  document.getElementById('btnPrintLbl').style.display='block';
+}
+
+function printLbl(){
+  const nom=document.getElementById('inNombre').value.trim();
+  const cod=document.getElementById('inCodigo').value.trim();
+  const med=document.getElementById('inMedida').value.trim();
+  const prc=parseFloat(document.getElementById('inPVenta').value)||0;
+  const wp=document.getElementById('chkPrecio').checked;
+  if(!nom&&!cod){alert('Ingresa nombre y código antes de imprimir');return;}
+  const z=document.getElementById('prnZone');
+  document.getElementById('prnNom').textContent=nom;
+  document.getElementById('prnMed').textContent=med;
+  document.getElementById('prnCod').textContent=cod;
+  const pp=document.getElementById('prnPrc');
+  if(wp&&prc){pp.textContent=`$${prc.toFixed(2)}`;pp.style.display='';}else pp.style.display='none';
+  z.style.display='flex';
+  if(cod){try{JsBarcode('#prnBc',cod,{format:'CODE128',width:1.5,height:30,displayValue:false,margin:2,background:'#ffffff',lineColor:'#000000'});}catch(e){}}
+  setTimeout(()=>{window.print();setTimeout(()=>{z.style.display='none';},400);},200);
+}
+
+document.getElementById('inCodigo').addEventListener('input',()=>{
+  document.getElementById('inCodigo').dataset.auto='0';
+  document.getElementById('codigoDisplay').textContent=document.getElementById('inCodigo').value||'—';
+  updatePreview();
+});
+</script>
+{% endblock %}

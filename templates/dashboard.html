@@ -1,0 +1,419 @@
+{% extends "base.html" %}
+{% block title %}Inicio — PERNO TODO{% endblock %}
+{% block page_title %}
+    <i class="bi bi-speedometer2 me-2" style="color:var(--accent)"></i> Dashboard
+{% endblock %}
+
+{% block head %}
+<style>
+/* KPI Cards */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+}
+@media(max-width:900px){ .kpi-grid { grid-template-columns: repeat(2,1fr); } }
+@media(max-width:480px){ .kpi-grid { grid-template-columns: 1fr; } }
+
+.kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: var(--shadow);
+    transition: transform .15s, box-shadow .15s;
+    text-decoration: none;
+}
+.kpi-card:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0,0,0,.1); }
+.kpi-icon {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; flex-shrink: 0;
+}
+.kpi-val { font-size: 1.8rem; font-weight: 800; color: var(--text-main); line-height: 1; }
+.kpi-lbl { font-size: .75rem; color: var(--text-muted); margin-top: 3px; font-weight: 500; text-transform: uppercase; letter-spacing: .5px; }
+.kpi-sub { font-size: .78rem; color: var(--text-muted); margin-top: 2px; }
+
+/* Greeting banner */
+.greet-banner {
+    background: linear-gradient(135deg, #1e2535 0%, #2563eb 100%);
+    border-radius: 14px;
+    padding: 24px 28px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    color: #fff;
+}
+.greet-time {
+    font-size: 2rem; font-weight: 800;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+}
+.greet-date { font-size: .85rem; color: rgba(255,255,255,.6); margin-top: 2px; }
+.badge-active {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(52,211,153,.15); border: 1px solid rgba(52,211,153,.3);
+    color: #34d399; border-radius: 20px; padding: 4px 12px;
+    font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+    margin-bottom: 8px;
+}
+.badge-active::before {
+    content:''; width:6px; height:6px; background:#34d399;
+    border-radius:50%; animation: pulse 1.5s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.4} }
+
+/* Bottom grid */
+.dash-grid {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 16px;
+}
+@media(max-width:1100px){ .dash-grid { grid-template-columns: 1fr; } }
+
+.section-hd {
+    font-size: .7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--text-muted);
+    margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+}
+
+/* Quick actions */
+.qa-link {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 14px; border-radius: 9px;
+    text-decoration: none; transition: background .12s;
+    color: var(--text-main);
+    border-bottom: 1px solid var(--border);
+}
+.qa-link:last-child { border-bottom: none; }
+.qa-link:hover { background: var(--accent-bg); color: var(--accent); }
+.qa-icon {
+    width: 34px; height: 34px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .95rem; flex-shrink: 0;
+}
+.qa-lbl { font-size: .88rem; font-weight: 500; }
+.qa-arr { margin-left: auto; font-size: .75rem; color: var(--text-muted); }
+
+/* Alert items */
+.alert-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0; border-bottom: 1px solid var(--border); font-size: .84rem;
+}
+.alert-item:last-child { border-bottom: none; }
+
+/* Last sales */
+.sale-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.sale-row:last-child { border-bottom: none; }
+.sale-num {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--accent-bg); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .72rem; font-weight: 700; flex-shrink: 0;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- GREETING BANNER -->
+<div class="greet-banner">
+    <div>
+        <div class="badge-active">Sistema Activo</div>
+        <h1 style="font-size:1.6rem;font-weight:800;color:#fff;margin:0 0 4px">PERNO TODO</h1>
+        <p style="margin:0;color:rgba(255,255,255,.65);font-size:.88rem">
+            Bienvenido, <strong style="color:#fff">{{ g.user.nombre }}</strong>
+            &nbsp;·&nbsp;
+            <span style="background:rgba(255,255,255,.12);padding:2px 10px;border-radius:20px;font-size:.75rem">
+                {{ g.user.role }}
+            </span>
+        </p>
+    </div>
+    <div style="text-align:right">
+        <div class="greet-time" id="clock">--:--:--</div>
+        <div class="greet-date">{{ now.strftime('%A, ') ~ now.day|string ~ now.strftime(' de %B de %Y') if now else '' }}</div>
+    </div>
+</div>
+
+<!-- KPIs -->
+<div class="kpi-grid">
+    <a href="{{ url_for('listar_productos') }}" class="kpi-card" style="text-decoration:none">
+        <div class="kpi-icon" style="background:rgba(37,99,235,.1)">
+            <i class="bi bi-box-seam" style="color:var(--accent)"></i>
+        </div>
+        <div>
+            <div class="kpi-val">{{ stats.total_productos }}</div>
+            <div class="kpi-lbl">Productos</div>
+        </div>
+    </a>
+
+    <a href="{{ url_for('listar_productos') }}" class="kpi-card" style="text-decoration:none">
+        <div class="kpi-icon" style="background:rgba(220,38,38,.1)">
+            <i class="bi bi-exclamation-triangle" style="color:var(--danger)"></i>
+        </div>
+        <div>
+            <div class="kpi-val" style="color:{% if stats.bajo_stock > 0 %}var(--danger){% else %}var(--success){% endif %}">
+                {{ stats.bajo_stock }}
+            </div>
+            <div class="kpi-lbl">Stock Bajo</div>
+            <div class="kpi-sub">{% if stats.bajo_stock == 0 %}Todo en orden ✓{% else %}Requieren atención{% endif %}</div>
+        </div>
+    </a>
+
+    <a href="{{ url_for('listar_proveedores') }}" class="kpi-card" style="text-decoration:none">
+        <div class="kpi-icon" style="background:rgba(217,119,6,.1)">
+            <i class="bi bi-truck" style="color:var(--warning)"></i>
+        </div>
+        <div>
+            <div class="kpi-val">{{ stats.total_proveedores }}</div>
+            <div class="kpi-lbl">Proveedores</div>
+        </div>
+    </a>
+
+    <a href="{{ url_for('ver_historial_ventas') }}" class="kpi-card" style="text-decoration:none">
+        <div class="kpi-icon" style="background:rgba(5,150,105,.1)">
+            <i class="bi bi-cash-coin" style="color:var(--success)"></i>
+        </div>
+        <div>
+            <div class="kpi-val" style="color:var(--success)">${{ "%.2f"|format(stats.ingresos_hoy) }}</div>
+            <div class="kpi-lbl">Ingresos Hoy</div>
+            <div class="kpi-sub">{{ stats.ventas_hoy }} venta{{ 's' if stats.ventas_hoy != 1 else '' }}</div>
+        </div>
+    </a>
+</div>
+
+<!-- BOTTOM GRID -->
+<div class="dash-grid">
+
+    <!-- LEFT: Gráfica + últimas ventas -->
+    <div>
+        <!-- Gráfica 7 días -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="section-hd">
+                    <i class="bi bi-graph-up" style="color:var(--accent)"></i>
+                    Ventas — Últimos 7 días
+                    <span style="margin-left:auto;font-size:.72rem;color:var(--text-muted)">
+                        {{ now.strftime('%b %Y') if now else '' }}
+                    </span>
+                </div>
+                <canvas id="chartVentas" height="90"></canvas>
+                {% if not stats.ventas_7dias %}
+                <p style="text-align:center;color:var(--text-muted);font-size:.85rem;padding:16px 0;margin:0">
+                    Sin ventas en los últimos 7 días
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Últimas ventas -->
+        <div class="card">
+            <div class="card-body">
+                <div class="section-hd">
+                    <i class="bi bi-receipt" style="color:var(--success)"></i>
+                    Últimas Ventas
+                    <a href="{{ url_for('ver_historial_ventas') }}"
+                       style="margin-left:auto;font-size:.75rem;color:var(--accent);text-decoration:none;font-weight:600">
+                        Ver todo →
+                    </a>
+                </div>
+                {% if ultimas_ventas %}
+                {% for v in ultimas_ventas %}
+                <div class="sale-row">
+                    <div class="sale-num">#{{ v.id_venta }}</div>
+                    <div style="flex:1">
+                        <div style="font-size:.87rem;font-weight:500;color:var(--text-main)">
+                            {{ v.nombre_cliente }}
+                        </div>
+                        <div style="font-size:.73rem;color:var(--text-muted)">
+                            {{ v.metodo_pago }}
+                            &nbsp;·&nbsp;
+                            {{ v.fecha_venta[:16] if v.fecha_venta else '—' }}
+                        </div>
+                    </div>
+                    <div style="font-weight:700;color:var(--success);font-size:.92rem">${{ "%.2f"|format(v.total) }}</div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p style="text-align:center;color:var(--text-muted);padding:20px 0;margin:0;font-size:.85rem">
+                    Sin ventas registradas hoy
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: Acciones rápidas + alertas -->
+    <div>
+        <!-- Mes actual -->
+        <div class="card mb-3" style="background:linear-gradient(135deg,var(--accent) 0%,#1d4ed8 100%);border:none">
+            <div class="card-body" style="color:#fff;padding:18px 20px">
+                <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.6);margin-bottom:4px">
+                    Ingresos del Mes
+                </div>
+                <div style="font-size:2rem;font-weight:800">${{ "%.2f"|format(stats.ventas_mes) }}</div>
+                <div style="font-size:.75rem;color:rgba(255,255,255,.6);margin-top:2px">
+                    {{ now.strftime('%B %Y') if now else '' }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Acciones rápidas -->
+        <div class="card mb-3">
+            <div class="card-body" style="padding:14px 16px">
+                <div class="section-hd">
+                    <i class="bi bi-lightning-charge" style="color:var(--warning)"></i> Acciones Rápidas
+                </div>
+                <a href="{{ url_for('punto_de_venta') }}" class="qa-link">
+                    <div class="qa-icon" style="background:rgba(5,150,105,.1)">
+                        <i class="bi bi-cart4" style="color:var(--success)"></i>
+                    </div>
+                    <span class="qa-lbl">Nueva Venta</span>
+                    <i class="bi bi-chevron-right qa-arr"></i>
+                </a>
+                <a href="{{ url_for('listar_productos') }}" class="qa-link">
+                    <div class="qa-icon" style="background:rgba(37,99,235,.1)">
+                        <i class="bi bi-box-seam" style="color:var(--accent)"></i>
+                    </div>
+                    <span class="qa-lbl">Catálogo de Productos</span>
+                    <i class="bi bi-chevron-right qa-arr"></i>
+                </a>
+                <a href="{{ url_for('ver_historial_ventas') }}" class="qa-link">
+                    <div class="qa-icon" style="background:rgba(109,40,217,.1)">
+                        <i class="bi bi-journal-text" style="color:#7c3aed"></i>
+                    </div>
+                    <span class="qa-lbl">Historial de Ventas</span>
+                    <i class="bi bi-chevron-right qa-arr"></i>
+                </a>
+                <a href="{{ url_for('listar_clientes') }}" class="qa-link">
+                    <div class="qa-icon" style="background:rgba(217,119,6,.1)">
+                        <i class="bi bi-people" style="color:var(--warning)"></i>
+                    </div>
+                    <span class="qa-lbl">Clientes</span>
+                    <i class="bi bi-chevron-right qa-arr"></i>
+                </a>
+                {% if g.user.role == 'Administrador' %}
+                <a href="{{ url_for('agregar_producto') }}" class="qa-link">
+                    <div class="qa-icon" style="background:rgba(220,38,38,.1)">
+                        <i class="bi bi-plus-circle" style="color:var(--danger)"></i>
+                    </div>
+                    <span class="qa-lbl">Agregar Producto</span>
+                    <i class="bi bi-chevron-right qa-arr"></i>
+                </a>
+                <a href="{{ url_for('generar_reportes') }}" class="qa-link">
+                    <div class="qa-icon" style="background:rgba(5,150,105,.1)">
+                        <i class="bi bi-bar-chart-line" style="color:var(--success)"></i>
+                    </div>
+                    <span class="qa-lbl">Reportes y Análisis</span>
+                    <i class="bi bi-chevron-right qa-arr"></i>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Alertas de stock -->
+        <div class="card">
+            <div class="card-body" style="padding:14px 16px">
+                <div class="section-hd">
+                    <i class="bi bi-exclamation-triangle" style="color:var(--warning)"></i> Alertas de Stock
+                </div>
+                {% if alertas %}
+                {% for a in alertas %}
+                <div class="alert-item">
+                    <span style="color:var(--text-main);font-size:.83rem;flex:1;padding-right:10px">
+                        {{ a.nombre_producto }}
+                    </span>
+                    <span class="badge-low">{{ a.stock_actual }}/{{ a.stock_minimo }}</span>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div style="text-align:center;padding:16px 0">
+                    <i class="bi bi-check-circle-fill" style="font-size:2rem;color:var(--success);display:block;margin-bottom:6px"></i>
+                    <span style="font-size:.83rem;color:var(--text-muted)">Todo el stock en orden</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+/* Clock */
+function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent = now.toLocaleTimeString('es-EC');
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* Chart */
+const rawData = {{ stats.ventas_7dias | tojson }};
+const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+const textColor = isDark ? 'rgba(255,255,255,.5)' : '#6b7280';
+const gridColor = isDark ? 'rgba(255,255,255,.06)' : '#f0f2f5';
+
+// Build full 7-day labels
+const labels = [];
+const values = [];
+const dataMap = {};
+rawData.forEach(d => { dataMap[d.dia] = d.total; });
+for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().split('T')[0];
+    const lbl = d.toLocaleDateString('es-EC', { weekday:'short' });
+    labels.push(lbl);
+    values.push(dataMap[key] || 0);
+}
+
+const ctx = document.getElementById('chartVentas');
+if (ctx) {
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Ventas ($)',
+                data: values,
+                backgroundColor: values.map(v => v > 0 ? 'rgba(37,99,235,.85)' : 'rgba(37,99,235,.12)'),
+                borderRadius: 6,
+                borderSkipped: false,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => `$${ctx.raw.toFixed(2)}`
+                    }
+                }
+            },
+            scales: {
+                x: { grid: { color: gridColor }, ticks: { color: textColor } },
+                y: {
+                    grid: { color: gridColor },
+                    ticks: { color: textColor, callback: v => `$${v}` },
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+</script>
+{% endblock %}

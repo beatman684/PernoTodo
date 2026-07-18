@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Detalle Venta #{{ venta.id_venta }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-receipt-cutoff text-info"></i> Nota de Venta #{{ venta.id_venta }}</h2>
+    <div>
+        <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-printer"></i> Imprimir
+        </button>
+        <a href="{{ url_for('ver_historial_ventas') }}" class="btn btn-secondary btn-sm ms-1">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-dark text-white">Datos de la Venta</div>
+            <div class="card-body">
+                <table class="table table-sm table-borderless mb-0">
+                    <tr><th>Número:</th><td>#{{ venta.id_venta }}</td></tr>
+                    <tr><th>Fecha:</th><td>{{ venta.fecha_venta }}</td></tr>
+                    <tr><th>Estado:</th>
+                        <td><span class="badge {% if venta.estado == 'completada' %}bg-success{% else %}bg-danger{% endif %}">
+                            {{ venta.estado }}</span>
+                        </td>
+                    </tr>
+                    <tr><th>Método Pago:</th><td>{{ venta.metodo_pago }}</td></tr>
+                    <tr><th>Atendido por:</th><td>{{ venta.nombre_empleado }}</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-dark text-white">Datos del Cliente</div>
+            <div class="card-body">
+                <table class="table table-sm table-borderless mb-0">
+                    <tr><th>Cliente:</th><td>{{ venta.nombre_cliente }}</td></tr>
+                    <tr><th>Cédula/RUC:</th><td>{{ venta.cedula_cliente }}</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-3">
+    <div class="card-header bg-dark text-white">Detalle de Productos</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped mb-0">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Producto</th>
+                        <th class="text-center">Cantidad</th>
+                        <th class="text-end">Precio Unit.</th>
+                        <th class="text-end">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in detalles %}
+                    <tr>
+                        <td><code>{{ d.codigo_producto }}</code></td>
+                        <td>{{ d.nombre_producto }}</td>
+                        <td class="text-center">{{ d.cantidad }}</td>
+                        <td class="text-end">${{ "%.2f"|format(d.precio_unitario) }}</td>
+                        <td class="text-end fw-bold">${{ "%.2f"|format(d.subtotal) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-dark">
+                    <tr>
+                        <td colspan="4" class="text-end fw-bold fs-5">TOTAL:</td>
+                        <td class="text-end fw-bold fs-5">${{ "%.2f"|format(venta.total) }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

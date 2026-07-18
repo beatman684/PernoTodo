@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block title %}Categorías — PERNO TODO{% endblock %}
+{% block page_title %}<i class="bi bi-grid me-2" style="color:var(--acc)"></i>Categorías de Producto{% endblock %}
+
+{% block head %}
+<style>
+.cat-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+  gap:16px;
+  margin-bottom:24px;
+}
+.cat-card{
+  background:var(--card);border:1.5px solid var(--bdr);
+  border-radius:14px;padding:22px 16px;
+  text-align:center;cursor:pointer;
+  transition:transform .15s,border-color .15s,box-shadow .15s;
+  text-decoration:none;color:inherit;
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  position:relative;overflow:hidden;
+}
+.cat-card:hover{
+  transform:translateY(-3px);
+  box-shadow:0 8px 24px rgba(0,0,0,.12);
+  border-color:var(--acc);
+  text-decoration:none;color:inherit;
+}
+.cat-icon{
+  width:56px;height:56px;border-radius:14px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.6rem;flex-shrink:0;
+}
+.cat-name{font-size:.88rem;font-weight:700;color:var(--txt);line-height:1.2}
+.cat-count{font-size:.72rem;color:var(--muted)}
+.cat-badge{
+  position:absolute;top:10px;right:10px;
+  background:var(--acc);color:#fff;
+  font-size:.62rem;font-weight:700;padding:2px 7px;border-radius:20px;
+}
+.cat-empty .cat-icon{opacity:.4}
+.cat-add-btn{
+  background:var(--card);border:1.5px dashed var(--bdr);
+  border-radius:14px;padding:22px 16px;
+  text-align:center;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  color:var(--muted);font-size:.88rem;font-weight:600;
+  transition:border-color .15s,background .15s;
+}
+.cat-add-btn:hover{border-color:var(--acc);background:var(--abg);color:var(--acc)}
+
+/* Manage categories panel */
+.manage-panel{background:var(--card);border:1px solid var(--bdr);border-radius:12px;padding:18px 20px;margin-bottom:20px}
+.manage-title{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:12px}
+.cat-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bdr)}
+.cat-row:last-child{border-bottom:none}
+.cat-row-name{flex:1;font-size:.88rem;color:var(--txt);font-weight:500}
+.cat-row-count{font-size:.75rem;color:var(--muted);min-width:60px;text-align:right}
+.btn-del-cat{background:none;border:1px solid rgba(220,38,38,.2);border-radius:6px;color:var(--err);padding:3px 9px;font-size:.75rem;cursor:pointer;opacity:.7;transition:opacity .1s}
+.btn-del-cat:hover{opacity:1;background:rgba(220,38,38,.08)}
+.btn-del-cat:disabled{opacity:.2;cursor:not-allowed}
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if user_role == 'Administrador' %}
+<!-- MANAGE PANEL (solo admin) -->
+<div class="manage-panel">
+  <div class="manage-title"><i class="bi bi-sliders me-1"></i> Administrar Categorías</div>
+  <div class="d-flex gap-2 align-items-center flex-wrap">
+    <input id="newCatInp" type="text" placeholder="Nueva categoría…"
+           style="flex:1;max-width:260px;padding:7px 11px;background:var(--card2);border:1px solid var(--bdr);border-radius:8px;color:var(--txt);font-size:.85rem;outline:none">
+    <button onclick="addCat()"
+            style="background:var(--acc);border:none;border-radius:8px;color:#fff;padding:7px 16px;font-size:.82rem;font-weight:700;cursor:pointer">
+      <i class="bi bi-plus me-1"></i>Agregar
+    </button>
+  </div>
+</div>
+{% endif %}
+
+<!-- CATEGORÍAS EN GRID CON ICONOS -->
+<div class="cat-grid">
+  {% for cat in categorias %}
+  {% set icon_map = {
+    'pernos': ('bi-tool', 'rgba(37,99,235,.12)', 'var(--acc)'),
+    'tornillos': ('bi-gear-wide-connected', 'rgba(5,150,105,.12)', 'var(--ok)'),
+    'tuercas': ('bi-circle', 'rgba(234,179,8,.12)', '#ca8a04'),
+    'arandelas': ('bi-disc', 'rgba(168,85,247,.12)', '#9333ea'),
+    'pernos de anclaje': ('bi-anchor', 'rgba(239,68,68,.12)', 'var(--err)'),
+    'esparragos': ('bi-columns-gap', 'rgba(20,184,166,.12)', '#0d9488'),
+    'herramientas': ('bi-wrench-adjustable', 'rgba(249,115,22,.12)', '#ea580c'),
+    'brocas': ('bi-record-circle', 'rgba(99,102,241,.12)', '#6366f1'),
+    'empaques': ('bi-box', 'rgba(14,165,233,.12)', '#0ea5e9'),
+    'materiales': ('bi-grid-3x3-gap', 'rgba(107,114,128,.12)', '#6b7280'),
+    'otros': ('bi-three-dots', 'rgba(100,116,139,.12)', '#64748b')
+  } %}
+  {% set cat_key = cat.nombre_categoria | lower %}
+  {% set icon_data = icon_map.get(cat_key, ('bi-tag', 'rgba(37,99,235,.12)', 'var(--acc)')) %}
+
+  <a href="{{ url_for('listar_productos') }}?cat={{ cat.id_categoria }}"
+     class="cat-card {% if cat.num_productos == 0 %}cat-empty{% endif %}">
+    <div class="cat-icon" style="background:{{ icon_data[1] }}">
+      <i class="bi {{ icon_data[0] }}" style="color:{{ icon_data[2] }}"></i>
+    </div>
+    <div>
+      <div class="cat-name">{{ cat.nombre_categoria }}</div>
+      <div class="cat-count">
+        {{ cat.num_productos }} producto{{ 's' if cat.num_productos != 1 else '' }}
+      </div>
+    </div>
+    {% if cat.num_productos > 0 %}
+    <span class="cat-badge">{{ cat.num_productos }}</span>
+    {% endif %}
+  </a>
+  {% endfor %}
+
+  {% if user_role == 'Administrador' %}
+  <div class="cat-add-btn" onclick="document.getElementById('newCatInp').focus()">
+    <i class="bi bi-plus-circle" style="font-size:1.8rem;opacity:.5"></i>
+    <span>Nueva Categoría</span>
+  </div>
+  {% endif %}
+</div>
+
+<!-- TABLA DE GESTIÓN (solo admin) -->
+{% if user_role == 'Administrador' and categorias %}
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Nombre</th>
+          <th class="text-center">Productos</th>
+          <th class="text-center">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cat in categorias %}
+        <tr>
+          <td style="color:var(--muted);font-size:.82rem">{{ loop.index }}</td>
+          <td style="font-weight:500">{{ cat.nombre_categoria }}</td>
+          <td class="text-center">
+            {% if cat.num_productos > 0 %}
+            <a href="{{ url_for('listar_productos') }}?cat={{ cat.id_categoria }}"
+               style="background:rgba(37,99,235,.1);color:var(--acc);padding:2px 10px;border-radius:20px;font-size:.75rem;font-weight:700;text-decoration:none">
+              {{ cat.num_productos }}
+            </a>
+            {% else %}
+            <span style="color:var(--muted);font-size:.8rem">0</span>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            {% if cat.num_productos == 0 %}
+            <form method="POST" action="{{ url_for('eliminar_categoria', id_categoria=cat.id_categoria) }}"
+                  style="display:inline" onsubmit="return confirm('¿Eliminar categoría «{{ cat.nombre_categoria }}»?')">
+              <button type="submit" class="btn-del-cat"><i class="bi bi-trash me-1"></i>Eliminar</button>
+            </form>
+            {% else %}
+            <span style="color:var(--muted);font-size:.78rem">En uso</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const API_CAT = "{{ url_for('api_agregar_categoria') }}";
+
+async function addCat(){
+  const inp = document.getElementById('newCatInp');
+  const nombre = inp.value.trim();
+  if(!nombre){ inp.focus(); return; }
+  try{
+    const r = await fetch(API_CAT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre_categoria:nombre})});
+    const d = await r.json();
+    if(d.success){
+      inp.value = '';
+      // Reload to show new category
+      window.location.reload();
+    } else {
+      alert(d.message || 'Error al agregar categoría');
+    }
+  }catch(e){ alert('Error de conexión'); }
+}
+
+document.getElementById('newCatInp') && document.getElementById('newCatInp').addEventListener('keydown', e => {
+  if(e.key === 'Enter'){ e.preventDefault(); addCat(); }
+});
+</script>
+{% endblock %}

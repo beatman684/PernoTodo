@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Reportes — PERNO TODO{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-bar-chart-line text-danger"></i> Reportes y Análisis</h2>
+
+<!-- RESUMEN -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="fs-1 fw-bold text-primary">{{ resumen.total_ventas }}</div>
+                <div class="text-muted">Ventas Completadas</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="fs-1 fw-bold text-success">${{ "%.2f"|format(resumen.ingresos_totales) }}</div>
+                <div class="text-muted">Ingresos Totales</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="fs-1 fw-bold text-warning">${{ "%.2f"|format(resumen.ticket_promedio) }}</div>
+                <div class="text-muted">Ticket Promedio</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- TOP PRODUCTOS -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <i class="bi bi-trophy"></i> Top 10 Productos Más Vendidos
+            </div>
+            <div class="card-body p-0">
+                {% if top_productos %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Producto</th>
+                                <th class="text-center">Unidades</th>
+                                <th class="text-end">Ingresos</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for i, p in top_productos | enumerate %}
+                            <tr>
+                                <td><span class="badge bg-secondary">{{ loop.index }}</span></td>
+                                <td>{{ p.nombre_producto }}</td>
+                                <td class="text-center">{{ p.total_vendido }}</td>
+                                <td class="text-end">${{ "%.2f"|format(p.ingresos) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-4">Sin datos de ventas aún.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- VENTAS POR DÍA -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <i class="bi bi-calendar3"></i> Ventas Últimos 30 Días
+            </div>
+            <div class="card-body p-0">
+                {% if ventas_dia %}
+                <div class="table-responsive" style="max-height:350px;overflow-y:auto">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="sticky-top">
+                            <tr>
+                                <th>Fecha</th>
+                                <th class="text-center">N° Ventas</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for v in ventas_dia | reverse %}
+                            <tr>
+                                <td>{{ v.dia }}</td>
+                                <td class="text-center">{{ v.cantidad }}</td>
+                                <td class="text-end">${{ "%.2f"|format(v.total) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-4">Sin ventas en los últimos 30 días.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

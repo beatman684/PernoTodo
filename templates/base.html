@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="es" data-theme="{{ g.theme | default('light') }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}PERNO TODO{% endblock %}</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+:root {
+  --sw: 220px; --th: 52px;
+  --bg:    #f4f6f9; --card:  #ffffff; --card2: #f8fafc;
+  --nav:   #1e2535; --top:   #ffffff;
+  --txt:   #1e2535; --muted: #6b7280; --snav:  #c8cdd8; --sdim:  #6b7787;
+  --bdr:   #e5e7eb; --acc:   #2563eb; --abg:   #eff6ff;
+  --ok:    #059669; --err:   #dc2626; --warn:  #d97706;
+  --shad:  0 1px 10px rgba(0,0,0,.06);
+}
+[data-theme="dark"] {
+  --bg:    #0f1117; --card:  #1a1d23; --card2: #22262f;
+  --nav:   #0d0f14; --top:   #1a1d23;
+  --txt:   #e8eaf0; --muted: #9ca3af; --snav:  #c8cdd8; --sdim:  #4b5563;
+  --bdr:   rgba(255,255,255,.08); --acc: #3b82f6; --abg: rgba(59,130,246,.12);
+  --ok:    #34d399; --err:   #f87171; --warn:  #fbbf24;
+  --shad:  0 1px 10px rgba(0,0,0,.3);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;display:flex;min-height:100vh;transition:background .2s,color .2s}
+
+/* SIDEBAR */
+.sb{width:var(--sw);min-height:100vh;background:var(--nav);display:flex;flex-direction:column;flex-shrink:0;position:fixed;left:0;top:0;bottom:0;z-index:300;overflow-y:auto;overflow-x:hidden;transition:transform .25s}
+.sb-logo{padding:16px 18px 12px;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;gap:10px}
+.sb-logo-icon{width:34px;height:34px;background:var(--acc);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#fff;flex-shrink:0}
+.sb-logo-name{font-size:.92rem;font-weight:800;color:#fff;letter-spacing:.5px}
+.sb-logo-sub{font-size:.62rem;color:var(--sdim);margin-top:1px}
+.sb-sec{padding:14px 16px 5px;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--sdim)}
+.sb-nav{flex:1;padding:6px 0}
+.sl{display:flex;align-items:center;gap:9px;padding:9px 14px;color:var(--snav);text-decoration:none;font-size:.84rem;font-weight:500;border-radius:7px;margin:1px 8px;transition:all .13s;white-space:nowrap}
+.sl i{font-size:.95rem;flex-shrink:0;width:17px;text-align:center}
+.sl:hover{background:rgba(255,255,255,.07);color:#fff}
+.sl.active{background:var(--acc);color:#fff;font-weight:600}
+.sl .sbdg{margin-left:auto;background:rgba(239,68,68,.2);color:#f87171;font-size:.6rem;font-weight:700;padding:2px 7px;border-radius:20px}
+.sl .sbdg.ok{background:rgba(52,211,153,.15);color:#34d399}
+.sb-foot{padding:12px 14px;border-top:1px solid rgba(255,255,255,.07)}
+.uc{display:flex;align-items:center;gap:9px}
+.ua{width:32px;height:32px;background:var(--acc);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.85rem;color:#fff;font-weight:700;flex-shrink:0}
+.un{font-size:.82rem;font-weight:600;color:#fff}
+.ur{font-size:.65rem;color:var(--sdim)}
+.btn-lo{display:flex;align-items:center;gap:6px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);border-radius:7px;color:#f87171;padding:6px 10px;font-size:.77rem;font-weight:600;text-decoration:none;cursor:pointer;margin-top:9px;width:100%;justify-content:center;transition:background .13s}
+.btn-lo:hover{background:rgba(239,68,68,.2);color:#f87171}
+
+/* MAIN */
+.main{margin-left:var(--sw);flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{height:var(--th);background:var(--top);border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;padding:0 22px;position:sticky;top:0;z-index:100;box-shadow:var(--shad)}
+.topbar-l{display:flex;align-items:center;gap:10px}
+.topbar-title{font-size:.88rem;font-weight:600;color:var(--txt)}
+.topbar-r{display:flex;align-items:center;gap:10px}
+.theme-btn{display:flex;align-items:center;gap:5px;background:var(--card2);border:1px solid var(--bdr);border-radius:20px;padding:5px 12px;color:var(--muted);font-size:.76rem;font-weight:600;text-decoration:none;transition:all .13s}
+.theme-btn:hover{border-color:var(--acc);color:var(--acc)}
+.pg{flex:1;padding:22px;padding-bottom:36px}
+
+/* CARDS */
+.card{background:var(--card);border:1px solid var(--bdr);border-radius:12px;box-shadow:var(--shad)}
+.card-header{border-radius:12px 12px 0 0!important;border-bottom:1px solid var(--bdr);background:var(--card2)!important;color:var(--txt)!important;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px}
+
+/* TABLES */
+.table{color:var(--txt)}
+.table th{background:var(--nav)!important;color:rgba(255,255,255,.7)!important;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;white-space:nowrap;padding:9px 13px;border-color:var(--bdr)!important}
+.table td{border-color:var(--bdr)!important;padding:9px 13px;vertical-align:middle;color:var(--txt)}
+.table-hover tbody tr:hover td{background:var(--abg)!important}
+
+/* FORMS */
+.form-control,.form-select{background:var(--card)!important;border:1px solid var(--bdr)!important;color:var(--txt)!important;border-radius:8px!important}
+.form-control:focus,.form-select:focus{border-color:var(--acc)!important;box-shadow:0 0 0 3px rgba(37,99,235,.12)!important}
+.form-control::placeholder{color:var(--muted)!important}
+.form-select option{background:var(--card);color:var(--txt)}
+.form-label{font-size:.78rem;font-weight:600;color:var(--muted);margin-bottom:4px}
+.input-group-text{background:var(--card2)!important;border:1px solid var(--bdr)!important;color:var(--muted)!important}
+
+/* ALERTS */
+.alert{border-left:4px solid;border-radius:8px;font-size:.85rem}
+.alert-success{border-color:var(--ok);background:rgba(5,150,105,.06);color:var(--txt)}
+.alert-danger{border-color:var(--err);background:rgba(220,38,38,.06);color:var(--txt)}
+.alert-warning{border-color:var(--warn);background:rgba(217,119,6,.06);color:var(--txt)}
+.alert-info{border-color:var(--acc);background:var(--abg);color:var(--txt)}
+
+/* BADGES */
+.bok{background:rgba(5,150,105,.1);color:var(--ok);font-size:.72rem;padding:3px 9px;border-radius:20px;font-weight:700}
+.blow{background:rgba(220,38,38,.1);color:var(--err);font-size:.72rem;padding:3px 9px;border-radius:20px;font-weight:700}
+.bout{background:rgba(107,114,128,.1);color:var(--muted);font-size:.72rem;padding:3px 9px;border-radius:20px;font-weight:700}
+
+/* MODAL */
+.modal-content{background:var(--card)!important;border:1px solid var(--bdr)!important;color:var(--txt)!important;border-radius:14px!important}
+.modal-header,.modal-footer{border-color:var(--bdr)!important}
+
+/* DROPDOWN */
+.dropdown-menu{background:var(--card)!important;border:1px solid var(--bdr)!important;border-radius:10px!important;box-shadow:0 8px 24px rgba(0,0,0,.15)!important}
+.dropdown-item{color:var(--txt)!important;font-size:.83rem;border-radius:6px;margin:1px 4px}
+.dropdown-item:hover{background:var(--abg)!important;color:var(--acc)!important}
+
+/* MOBILE */
+.sb-toggle{display:none;background:none;border:none;color:var(--txt);font-size:1.3rem;cursor:pointer;padding:4px 8px}
+@media(max-width:768px){.sb{transform:translateX(-100%)}.sb.open{transform:translateX(0)}.main{margin-left:0}.sb-toggle{display:block}}
+
+/* PRINT */
+@media print{.sb,.topbar,.no-print{display:none!important}.main{margin-left:0!important}.pg{padding:0!important}body{background:white!important;color:black!important}}
+</style>
+{% block head %}{% endblock %}
+</head>
+<body>
+
+<aside class="sb" id="sb">
+  <div class="sb-logo">
+    <div class="sb-logo-icon"><i class="bi bi-gear-fill"></i></div>
+    <div>
+      <div class="sb-logo-name">PERNO TODO</div>
+      <div class="sb-logo-sub">Gestión Industrial</div>
+    </div>
+  </div>
+
+  <nav class="sb-nav">
+    <div class="sb-sec">Principal</div>
+    <a href="{{ url_for('dashboard') }}" class="sl {% if request.endpoint=='dashboard' %}active{% endif %}">
+      <i class="bi bi-speedometer2"></i> Inicio
+    </a>
+    <a href="{{ url_for('punto_de_venta') }}" class="sl {% if request.endpoint=='punto_de_venta' %}active{% endif %}">
+      <i class="bi bi-cash-coin"></i> Punto de Venta
+    </a>
+    <a href="{{ url_for('ver_historial_ventas') }}" class="sl {% if 'venta' in (request.endpoint or '') and request.endpoint!='punto_de_venta' %}active{% endif %}">
+      <i class="bi bi-receipt"></i> Ventas
+    </a>
+    <a href="{{ url_for('listar_egresos') }}" class="sl {% if 'egreso' in (request.endpoint or '') %}active{% endif %}">
+      <i class="bi bi-arrow-down-circle"></i> Egresos / Gastos
+    </a>
+
+    <div class="sb-sec">Inventario</div>
+    <a href="{{ url_for('listar_productos') }}" class="sl {% if 'producto' in (request.endpoint or '') %}active{% endif %}">
+      <i class="bi bi-box-seam"></i> Productos
+      {% if g.user and bajo_stock_global is defined and bajo_stock_global > 0 %}
+      <span class="sbdg">{{ bajo_stock_global }}</span>
+      {% endif %}
+    </a>
+    <a href="{{ url_for('listar_proveedores') }}" class="sl {% if 'proveedor' in (request.endpoint or '') %}active{% endif %}">
+      <i class="bi bi-truck"></i> Proveedores
+    </a>
+    <a href="{{ url_for('listar_clientes') }}" class="sl {% if 'cliente' in (request.endpoint or '') %}active{% endif %}">
+      <i class="bi bi-people"></i> Clientes
+    </a>
+
+    {% if g.user and g.user.role == 'Administrador' %}
+    <div class="sb-sec">Administración</div>
+    <a href="{{ url_for('generar_reportes') }}" class="sl {% if 'reporte' in (request.endpoint or '') %}active{% endif %}">
+      <i class="bi bi-bar-chart-line"></i> Reportes
+    </a>
+    <a href="{{ url_for('listar_sucursales') }}" class="sl {% if 'sucursal' in (request.endpoint or '') %}active{% endif %}">
+      <i class="bi bi-building"></i> Sucursales
+    </a>
+    <a href="{{ url_for('listar_usuarios') }}" class="sl {% if 'usuario' in (request.endpoint or '') %}active{% endif %}">
+      <i class="bi bi-person-gear"></i> Usuarios
+    </a>
+
+    {% endif %}
+  </nav>
+
+  {% if g.user %}
+  <div class="sb-foot">
+    <div class="uc">
+      <div class="ua">{{ g.user.nombre[0]|upper }}</div>
+      <div>
+        <div class="un">{{ g.user.nombre }}</div>
+        <div class="ur">{{ g.user.role }}</div>
+      </div>
+    </div>
+    <a href="{{ url_for('logout') }}" class="btn-lo">
+      <i class="bi bi-box-arrow-right"></i> Cerrar Sesión
+    </a>
+  </div>
+  {% endif %}
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-l">
+      <button class="sb-toggle" onclick="document.getElementById('sb').classList.toggle('open')">
+        <i class="bi bi-list"></i>
+      </button>
+      <span class="topbar-title">{% block page_title %}{% endblock %}</span>
+    </div>
+    <div class="topbar-r">
+      {% if g.theme == 'dark' %}
+      <a href="{{ url_for('set_theme', theme='light') }}" class="theme-btn no-print">
+        <i class="bi bi-sun-fill"></i> Claro
+      </a>
+      {% else %}
+      <a href="{{ url_for('set_theme', theme='dark') }}" class="theme-btn no-print">
+        <i class="bi bi-moon-fill"></i> Oscuro
+      </a>
+      {% endif %}
+      {% if g.user %}
+      <span style="font-size:.8rem;color:var(--muted)">
+        <i class="bi bi-person-circle"></i> {{ g.user.nombre }}
+      </span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="pg">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for cat, msg in messages %}
+      <div class="alert alert-{{ cat }} alert-dismissible fade show mb-3">
+        {{ msg }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+      {% endfor %}
+    {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

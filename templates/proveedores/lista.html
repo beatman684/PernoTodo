@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Proveedores — PERNO TODO{% endblock %}
+{% block page_title %}<i class="bi bi-truck me-2" style="color:var(--ok)"></i>Proveedores{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2 style="font-size:1.4rem;font-weight:800;color:var(--txt);margin:0">Proveedores</h2>
+    <p style="color:var(--muted);font-size:.82rem;margin:3px 0 0">{{ total_proveedores }} proveedor{{ 'es' if total_proveedores != 1 else '' }} registrado{{ 's' if total_proveedores != 1 else '' }}</p>
+  </div>
+  {% if user_role == 'Administrador' %}
+  <a href="{{ url_for('agregar_proveedor') }}"
+     style="background:var(--acc);border:none;border-radius:9px;color:#fff;padding:8px 16px;font-size:.83rem;font-weight:700;text-decoration:none;display:flex;align-items:center;gap:6px">
+    <i class="bi bi-plus-circle"></i> Nuevo Proveedor
+  </a>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    {% if proveedores %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>RUC</th>
+            <th>Empresa</th>
+            <th>Contacto</th>
+            <th>Teléfono</th>
+            <th>Email</th>
+            <th>Dirección</th>
+            <th>F. Registro</th>
+            {% if user_role == 'Administrador' %}<th class="text-center">Acciones</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in proveedores %}
+          <tr>
+            <td><code style="color:var(--warn);font-size:.84rem">{{ p.ruc }}</code></td>
+            <td style="font-weight:600;color:var(--txt)">{{ p.nombre_empresa }}</td>
+            <td style="color:var(--muted)">{{ p.contacto or '—' }}</td>
+            <td style="color:var(--muted)">{{ p.telefono or '—' }}</td>
+            <td style="color:var(--muted);font-size:.83rem">{{ p.email or '—' }}</td>
+            <td style="color:var(--muted);font-size:.82rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.direccion or '—' }}</td>
+            <td style="color:var(--muted);font-size:.78rem">{{ p.fecha_registro[:10] if p.fecha_registro else '—' }}</td>
+            {% if user_role == 'Administrador' %}
+            <td class="text-center">
+              <div class="d-flex gap-1 justify-content-center">
+                <a href="{{ url_for('editar_proveedor', id_proveedor=p.id_proveedor) }}"
+                   style="background:none;border:1px solid var(--bdr);border-radius:7px;color:var(--muted);padding:4px 9px;font-size:.78rem;text-decoration:none;transition:all .12s"
+                   onmouseover="this.style.background='rgba(217,119,6,.08)';this.style.color='var(--warn)'"
+                   onmouseout="this.style.background='none';this.style.color='var(--muted)'"
+                   title="Editar">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <form method="POST" action="{{ url_for('eliminar_proveedor', id_proveedor=p.id_proveedor) }}"
+                      style="display:inline" onsubmit="return confirm('¿Eliminar «{{ p.nombre_empresa }}»?')">
+                  <button type="submit"
+                          style="background:none;border:1px solid var(--bdr);border-radius:7px;color:var(--muted);padding:4px 9px;font-size:.78rem;cursor:pointer;transition:all .12s"
+                          onmouseover="this.style.background='rgba(220,38,38,.08)';this.style.color='var(--err)'"
+                          onmouseout="this.style.background='none';this.style.color='var(--muted)'"
+                          title="Eliminar">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </div>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if total_pages > 1 %}
+    <div class="d-flex justify-content-between align-items-center px-3 py-2" style="border-top:1px solid var(--bdr)">
+      <span style="font-size:.78rem;color:var(--muted)">{{ proveedores|length }} de {{ total_proveedores }} · Pág {{ page }}/{{ total_pages }}</span>
+      <nav><ul class="pagination pagination-sm mb-0">
+        <li class="page-item {% if page==1 %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('listar_proveedores',page=page-1) }}"><i class="bi bi-chevron-left"></i></a>
+        </li>
+        {% for pp in range(1,total_pages+1) %}
+        <li class="page-item {% if pp==page %}active{% endif %}">
+          <a class="page-link" href="{{ url_for('listar_proveedores',page=pp) }}">{{ pp }}</a>
+        </li>
+        {% endfor %}
+        <li class="page-item {% if page==total_pages %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('listar_proveedores',page=page+1) }}"><i class="bi bi-chevron-right"></i></a>
+        </li>
+      </ul></nav>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div style="text-align:center;padding:60px;color:var(--muted)">
+      <i class="bi bi-truck" style="font-size:3rem;display:block;margin-bottom:12px"></i>
+      No hay proveedores registrados.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

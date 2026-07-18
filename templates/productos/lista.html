@@ -1,0 +1,361 @@
+{% extends "base.html" %}
+{% block title %}Productos — PERNO TODO{% endblock %}
+{% block page_title %}<i class="bi bi-box-seam me-2" style="color:var(--acc)"></i>
+  {% if user_role == 'Administrador' %}Administración de Productos{% else %}Catálogo{% endif %}
+{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<style>
+.tbl-btn{background:none;border:1px solid var(--bdr);border-radius:7px;color:var(--muted);padding:4px 9px;font-size:.78rem;cursor:pointer;transition:all .12s}
+.tbl-btn:hover{background:var(--card2)}
+.tbl-btn.edit:hover{background:rgba(217,119,6,.08);color:var(--warn);border-color:rgba(217,119,6,.2)}
+.tbl-btn.del:hover{background:rgba(220,38,38,.08);color:var(--err);border-color:rgba(220,38,38,.2)}
+.tbl-btn.lbl:hover{background:rgba(37,99,235,.08);color:var(--acc);border-color:rgba(37,99,235,.2)}
+
+/* ─── PRINT: etiquetas ─── */
+@media print {
+  body * { visibility: hidden !important; }
+  #pZone, #pZone * { visibility: visible !important; }
+  #pZone {
+    position: fixed !important; top: 0 !important; left: 0 !important;
+    width: 100% !important; height: auto !important;
+    display: flex !important; flex-wrap: wrap !important;
+    gap: 0 !important; padding: 3mm !important;
+    background: white !important;
+  }
+  .pl {
+    width: 62mm; height: 38mm; border: 0.3mm solid #ddd;
+    border-radius: 1.5mm; padding: 2.5mm; box-sizing: border-box;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; page-break-inside: avoid;
+    background: white; font-family: sans-serif;
+  }
+  .pl-co{font-size:5.5pt;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#374151}
+  .pl-nm{font-size:6.5pt;font-weight:600;text-align:center;margin:1.5mm 0 1mm;color:#111;line-height:1.2;max-width:56mm}
+  .pl-md{font-size:5.5pt;color:#6b7280;margin-bottom:1mm}
+  .pl-pr{font-size:10pt;font-weight:800;color:#000}
+  .pl-cd{font-size:5.5pt;color:#9ca3af;font-family:monospace;margin-top:1mm}
+  .pl svg{max-width:100%;height:auto}
+
+  /* ─── PRINT: lista de productos ─── */
+  #listaPrint, #listaPrint * { visibility: visible !important; }
+  #listaPrint {
+    position: fixed !important; top: 0 !important; left: 0 !important;
+    width: 100% !important; background: white !important;
+    font-family: Arial, sans-serif !important; font-size: 10px !important;
+    padding: 8mm !important; color: black !important;
+  }
+  #listaPrint table { width: 100%; border-collapse: collapse; }
+  #listaPrint th { background: #1e2535 !important; color: white !important; padding: 5px 8px; font-size: 9px; text-transform: uppercase; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #listaPrint td { padding: 4px 8px; border-bottom: 1px solid #e5e7eb; }
+  #listaPrint tr:nth-child(even) td { background: #f9fafb; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- HEADER -->
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+  <div>
+    <h2 style="font-size:1.4rem;font-weight:800;color:var(--txt);margin:0">
+      {% if user_role == 'Administrador' %}Administración de Productos{% else %}Catálogo de Productos{% endif %}
+    </h2>
+    <p style="color:var(--muted);font-size:.82rem;margin:3px 0 0">
+      {{ total_productos }} producto{{ 's' if total_productos != 1 else '' }} en inventario
+    </p>
+  </div>
+  {% if user_role == 'Administrador' %}
+  <div class="d-flex gap-2 flex-wrap align-items-center">
+    <a href="{{ url_for('agregar_producto') }}"
+       style="background:var(--acc);border:none;border-radius:9px;color:#fff;padding:8px 16px;font-size:.83rem;font-weight:700;text-decoration:none;display:flex;align-items:center;gap:6px">
+      <i class="bi bi-plus-circle"></i> Agregar Producto
+    </a>
+    <div class="dropdown">
+      <button class="dropdown-toggle"
+              style="background:var(--card2);border:1px solid var(--bdr);border-radius:9px;color:var(--txt);padding:8px 14px;font-size:.83rem;font-weight:600;cursor:pointer"
+              data-bs-toggle="dropdown">
+        <i class="bi bi-three-dots-vertical me-1"></i> Opciones
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="#" onclick="printLabels(false)">
+          <i class="bi bi-tags me-2" style="color:var(--acc)"></i>Etiquetas sin precio
+        </a></li>
+        <li><a class="dropdown-item" href="#" onclick="printLabels(true)">
+          <i class="bi bi-tag me-2" style="color:var(--ok)"></i>Etiquetas con precio
+        </a></li>
+        <li><hr class="dropdown-divider" style="border-color:var(--bdr)"></li>
+        <li><a class="dropdown-item" href="#" onclick="exportCSV()">
+          <i class="bi bi-file-earmark-spreadsheet me-2" style="color:var(--warn)"></i>Exportar CSV
+        </a></li>
+        <li><a class="dropdown-item" href="#" onclick="doPrintLista()">
+          <i class="bi bi-printer me-2" style="color:var(--muted)"></i>Imprimir Lista
+        </a></li>
+      </ul>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- BÚSQUEDA -->
+<form method="GET" action="{{ url_for('listar_productos') }}" class="mb-3 d-flex gap-2">
+  <input type="text" name="q"
+         style="background:var(--card);border:1px solid var(--bdr);border-radius:9px;color:var(--txt);padding:8px 14px;font-size:.88rem;width:100%;max-width:360px;outline:none"
+         placeholder="Buscar por código o nombre…" value="{{ query or '' }}">
+  <button type="submit" class="tbl-btn" style="padding:8px 14px"><i class="bi bi-search"></i></button>
+  {% if query %}
+  <a href="{{ url_for('listar_productos') }}" class="tbl-btn" style="padding:8px 12px;text-decoration:none"><i class="bi bi-x-lg"></i></a>
+  {% endif %}
+</form>
+
+<!-- TABLA -->
+<div class="card">
+  <div class="card-body p-0">
+    {% if productos %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0" id="prodTable">
+        <thead>
+          <tr>
+            <th>Código</th><th>Nombre</th><th>Medida</th>
+            <th class="text-end">Precio Venta</th>
+            <th class="text-center">Stock</th>
+            {% if user_role == 'Administrador' %}
+            <th class="text-end">Costo</th>
+            <th class="text-center">Mín.</th>
+            <th>Categoría</th>
+            <th class="text-center">Acciones</th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in productos %}
+          <tr>
+            <td><code style="color:var(--warn);font-size:.84rem">{{ p.codigo_producto }}</code></td>
+            <td style="font-weight:500;color:var(--txt)">{{ p.nombre_producto }}</td>
+            <td style="color:var(--muted);font-size:.83rem">{{ p.medida or '—' }}</td>
+            <td class="text-end" style="color:var(--ok);font-weight:700">${{ "%.2f"|format(p.precio_venta) }}</td>
+            <td class="text-center">
+              {% if p.stock_actual == 0 %}<span class="bout">Agotado</span>
+              {% elif p.stock_actual < p.stock_minimo %}<span class="blow">{{ p.stock_actual }} ⚠</span>
+              {% else %}<span class="bok">{{ p.stock_actual }}</span>{% endif %}
+            </td>
+            {% if user_role == 'Administrador' %}
+            <td class="text-end" style="color:var(--muted)">${{ "%.2f"|format(p.precio_compra) }}</td>
+            <td class="text-center" style="color:var(--muted)">{{ p.stock_minimo }}</td>
+            <td style="color:var(--muted);font-size:.82rem">{{ p.nombre_categoria or '—' }}</td>
+            <td>
+              <div class="d-flex gap-1 justify-content-center">
+                <a href="{{ url_for('editar_producto', id_producto=p.id_producto) }}" class="tbl-btn edit" title="Editar"><i class="bi bi-pencil"></i></a>
+                <form action="{{ url_for('eliminar_producto', id_producto=p.id_producto) }}" method="POST" style="display:inline"
+                      onsubmit="return confirm('¿Eliminar «{{ p.nombre_producto }}»?')">
+                  <button type="submit" class="tbl-btn del"><i class="bi bi-trash"></i></button>
+                </form>
+              </div>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if total_pages > 1 %}
+    <div class="d-flex justify-content-between align-items-center px-3 py-2" style="border-top:1px solid var(--bdr)">
+      <span style="font-size:.78rem;color:var(--muted)">{{ productos|length }} de {{ total_productos }} · Pág {{ page }}/{{ total_pages }}</span>
+      <nav><ul class="pagination pagination-sm mb-0">
+        <li class="page-item {% if page==1 %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('listar_productos',page=page-1,q=query) }}"><i class="bi bi-chevron-left"></i></a>
+        </li>
+        {% for pp in range(1,total_pages+1) %}
+          {% if pp==page or pp==1 or pp==total_pages or (pp>=page-2 and pp<=page+2) %}
+          <li class="page-item {% if pp==page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('listar_productos',page=pp,q=query) }}">{{ pp }}</a>
+          </li>
+          {% elif pp==page-3 or pp==page+3 %}
+          <li class="page-item disabled"><span class="page-link">…</span></li>
+          {% endif %}
+        {% endfor %}
+        <li class="page-item {% if page==total_pages %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('listar_productos',page=page+1,q=query) }}"><i class="bi bi-chevron-right"></i></a>
+        </li>
+      </ul></nav>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div style="text-align:center;padding:60px;color:var(--muted)">
+      <i class="bi bi-box-seam" style="font-size:3rem;display:block;margin-bottom:12px"></i>
+      {% if query %}Sin resultados para «{{ query }}».{% else %}No hay productos.{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ZONA ETIQUETAS (print) -->
+<div id="pZone" style="display:none"></div>
+
+<!-- ZONA LISTA (print) — SIEMPRE en el DOM, oculta visualmente -->
+<div id="listaPrint" style="display:none">
+  <div style="text-align:center;margin-bottom:6mm">
+    <div style="font-size:14pt;font-weight:800">⚙ PERNO TODO</div>
+    <div style="font-size:10pt;margin-top:2mm">Lista de Productos — <span id="listaPrintFecha"></span></div>
+    <div style="font-size:8pt;color:#666;margin-top:1mm">Total: {{ total_productos }} productos</div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Código</th>
+        <th>Nombre del Producto</th>
+        <th>Medida</th>
+        <th>Precio Venta</th>
+        <th>Stock</th>
+        <th>Stock Mín.</th>
+        <th>Categoría</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in all_productos %}
+      <tr>
+        <td style="font-family:monospace">{{ p.codigo_producto }}</td>
+        <td>{{ p.nombre_producto }}</td>
+        <td>{{ p.medida or '—' }}</td>
+        <td style="text-align:right">${{ "%.2f"|format(p.precio_venta) }}</td>
+        <td style="text-align:center">{{ p.stock_actual }}</td>
+        <td style="text-align:center">{{ p.stock_minimo }}</td>
+        <td>{{ p.nombre_categoria or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- MODAL ETIQUETA INDIVIDUAL -->
+<div class="modal fade" id="lblModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title fw-bold" style="color:var(--txt)"><i class="bi bi-tag me-2" style="color:var(--acc)"></i>Etiqueta</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center py-3">
+        <div id="lblPrev" style="background:white;border-radius:8px;padding:14px;border:1px solid #e5e7eb;display:inline-block;min-width:200px;font-family:sans-serif;text-align:center">
+          <div style="font-size:.58rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#374151">⚙ PERNO TODO</div>
+          <div id="lp-name" style="font-size:.76rem;font-weight:600;color:#111;margin:4px 0 8px;line-height:1.3;max-width:200px"></div>
+          <div id="lp-med" style="font-size:.65rem;color:#6b7280;margin-bottom:5px"></div>
+          <svg id="lp-bc"></svg>
+          <div id="lp-price" style="font-size:1.1rem;font-weight:800;color:#000;margin-top:4px"></div>
+          <div id="lp-code" style="font-size:.58rem;color:#9ca3af;margin-top:2px;font-family:monospace"></div>
+        </div>
+        <div class="mt-3">
+          <label style="font-size:.8rem;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px">
+            <input type="checkbox" id="chkPrecio" checked onchange="updLbl()"> Mostrar precio
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
+        <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button class="btn btn-sm btn-primary" onclick="printSingle()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const allProds = {{ all_productos_json | safe }};
+let _cur = null;
+
+/* ─── ETIQUETA INDIVIDUAL ─── */
+function showLbl(code, name, price, medida) {
+  _cur = {code, name, price, medida};
+  document.getElementById('chkPrecio').checked = true;
+  rndLbl(code, name, price, medida, true);
+  new bootstrap.Modal(document.getElementById('lblModal')).show();
+}
+function updLbl() {
+  if (_cur) rndLbl(_cur.code, _cur.name, _cur.price, _cur.medida, document.getElementById('chkPrecio').checked);
+}
+function rndLbl(code, name, price, medida, wp) {
+  document.getElementById('lp-name').textContent = name;
+  document.getElementById('lp-med').textContent  = medida || '';
+  document.getElementById('lp-code').textContent = code;
+  const pe = document.getElementById('lp-price');
+  pe.textContent = wp ? `$${parseFloat(price).toFixed(2)}` : '';
+  pe.style.display = wp ? '' : 'none';
+  try { JsBarcode('#lp-bc', code, {format:'CODE128',width:1.8,height:44,displayValue:false,margin:3,background:'#ffffff',lineColor:'#000000'}); } catch(e) {}
+}
+function printSingle() {
+  if (_cur) buildAndPrint([_cur], document.getElementById('chkPrecio').checked);
+}
+
+/* ─── ETIQUETAS MASIVAS ─── */
+function printLabels(wp) {
+  if (!allProds.length) { alert('No hay productos.'); return; }
+  buildAndPrint(allProds, wp);
+}
+function buildAndPrint(items, wp) {
+  const z = document.getElementById('pZone');
+  z.innerHTML = '';
+  items.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'pl';
+    const sid = 'bc_' + item.code.replace(/[^a-z0-9]/gi, '_') + '_' + Math.random().toString(36).slice(2,6);
+    div.innerHTML = `
+      <div class="pl-co">⚙ PERNO TODO</div>
+      <div class="pl-nm">${item.name}</div>
+      ${item.medida ? `<div class="pl-md">${item.medida}</div>` : ''}
+      <svg id="${sid}"></svg>
+      ${wp ? `<div class="pl-pr">$${parseFloat(item.price).toFixed(2)}</div>` : ''}
+      <div class="pl-cd">${item.code}</div>`;
+    z.appendChild(div);
+    try { JsBarcode(`#${sid}`, item.code, {format:'CODE128',width:1.5,height:30,displayValue:false,margin:2,background:'#ffffff',lineColor:'#000000'}); } catch(e) {}
+  });
+  // Show pZone, hide listaPrint
+  z.style.display = 'flex';
+  document.getElementById('listaPrint').style.display = 'none';
+  setTimeout(() => {
+    window.print();
+    setTimeout(() => { z.style.display = 'none'; z.innerHTML = ''; }, 600);
+  }, 280);
+}
+
+/* ─── IMPRIMIR LISTA ─── */
+function doPrintLista() {
+  const lp = document.getElementById('listaPrint');
+  document.getElementById('listaPrintFecha').textContent = new Date().toLocaleDateString('es-EC', {
+    day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+  // Hide pZone so only lista shows
+  document.getElementById('pZone').style.display = 'none';
+  document.getElementById('pZone').innerHTML = '';
+  // Show lista, print, then hide
+  lp.style.display = 'block';
+  setTimeout(() => {
+    window.print();
+    setTimeout(() => { lp.style.display = 'none'; }, 500);
+  }, 200);
+}
+
+/* ─── EXPORTAR CSV ─── */
+function exportCSV() {
+  const rows = [['Código','Nombre','Medida','Precio Venta','Stock','Costo','Mín.','Categoría']];
+  document.querySelectorAll('#prodTable tbody tr').forEach(tr => {
+    const td = tr.querySelectorAll('td');
+    if (td.length > 4) rows.push([
+      td[0].textContent.trim(), td[1].textContent.trim(), td[2].textContent.trim(),
+      td[3].textContent.trim(), td[4].textContent.trim(),
+      td[5] ? td[5].textContent.trim() : '',
+      td[6] ? td[6].textContent.trim() : '',
+      td[7] ? td[7].textContent.trim() : ''
+    ]);
+  });
+  const csv = rows.map(r => r.map(c => `"${c.replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
+  a.download = 'productos_pernotodo.csv';
+  a.click();
+}
+</script>
+{% endblock %}

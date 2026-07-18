@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Usuarios — PERNO TODO{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-person-gear text-secondary"></i> Gestión de Usuarios</h2>
+    <a href="{{ url_for('agregar_usuario') }}" class="btn btn-primary">
+        <i class="bi bi-person-plus"></i> Nuevo Usuario
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Email</th>
+                        <th>Rol</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in usuarios %}
+                    <tr>
+                        <td>{{ u.nombre }}</td>
+                        <td>{{ u.email }}</td>
+                        <td>
+                            <span class="badge {% if u.role == 'Administrador' %}bg-danger{% else %}bg-info text-dark{% endif %}">
+                                {{ u.role }}
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <!-- Modal cambio contraseña -->
+                            <button class="btn btn-sm btn-outline-warning"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#modalPwd{{ u.id_usuario }}">
+                                <i class="bi bi-key"></i>
+                            </button>
+                            {% if u.id_usuario != g.user.id_usuario %}
+                            <form method="POST"
+                                  action="{{ url_for('eliminar_usuario', id_usuario=u.id_usuario) }}"
+                                  style="display:inline"
+                                  onsubmit="return confirm('¿Eliminar usuario {{ u.nombre }}?')">
+                                <button class="btn btn-sm btn-danger">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+
+                    <!-- Modal cambiar contraseña -->
+                    <div class="modal fade" id="modalPwd{{ u.id_usuario }}" tabindex="-1">
+                        <div class="modal-dialog modal-sm">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Cambiar Contraseña</h5>
+                                    <button class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <form method="POST"
+                                      action="{{ url_for('cambiar_password', id_usuario=u.id_usuario) }}">
+                                    <div class="modal-body">
+                                        <p class="text-muted small">Usuario: <strong>{{ u.nombre }}</strong></p>
+                                        <input type="password" name="nueva_password"
+                                               class="form-control" placeholder="Nueva contraseña (mín. 6 caracteres)"
+                                               minlength="6" required>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="submit" class="btn btn-warning btn-sm">
+                                            Cambiar
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

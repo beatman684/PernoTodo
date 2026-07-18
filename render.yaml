@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: perno-todo
+    env: python
+    plan: free
+    buildCommand: |
+      pip install -r requirements.txt
+      python -c "from database.connection import init_db; init_db()"
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+      - key: SECRET_KEY
+        generateValue: true
+    disk:
+      name: perno-todo-db
+      mountPath: /opt/render/project/src/database
+      sizeGB: 1

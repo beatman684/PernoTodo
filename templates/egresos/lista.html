@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Egresos — PERNO TODO{% endblock %}
+{% block page_title %}<i class="bi bi-arrow-down-circle me-2" style="color:var(--err)"></i>Egresos / Gastos{% endblock %}
+
+{% block head %}
+<style>
+.cat-chip{display:inline-flex;align-items:center;gap:4px;background:var(--card2);border:1px solid var(--bdr);border-radius:6px;padding:2px 9px;font-size:.75rem;color:var(--muted)}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- KPIs HOY -->
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px">
+  <div class="card" style="padding:18px 20px">
+    <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:4px">Egresos Hoy</div>
+    <div style="font-size:1.7rem;font-weight:800;color:var(--err)">${{ "%.2f"|format(resumen.s or 0) }}</div>
+    <div style="font-size:.75rem;color:var(--muted)">{{ resumen.c or 0 }} registro{{ 's' if (resumen.c or 0) != 1 else '' }}</div>
+  </div>
+  <div class="card" style="padding:18px 20px">
+    <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:4px">Registrar Egreso</div>
+    <button onclick="document.getElementById('fEgreso').style.display='block';this.closest('.card').style.display='none'"
+            style="background:var(--err);border:none;border-radius:9px;color:#fff;padding:8px 16px;font-size:.83rem;font-weight:700;cursor:pointer;width:100%">
+      <i class="bi bi-plus-circle me-1"></i> Nuevo Egreso
+    </button>
+  </div>
+  <div class="card" style="padding:18px 20px">
+    <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:4px">Filtrar por Mes</div>
+    <form method="GET" style="display:flex;gap:6px">
+      <input type="month" name="mes" value="{{ mes }}"
+             style="flex:1;background:var(--card2);border:1px solid var(--bdr);border-radius:8px;color:var(--txt);padding:6px 10px;font-size:.83rem;outline:none">
+      <button type="submit"
+              style="background:var(--acc);border:none;border-radius:8px;color:#fff;padding:6px 12px;font-size:.8rem;cursor:pointer">
+        <i class="bi bi-search"></i>
+      </button>
+      {% if mes %}
+      <a href="{{ url_for('listar_egresos') }}"
+         style="background:var(--card2);border:1px solid var(--bdr);border-radius:8px;color:var(--muted);padding:6px 10px;font-size:.8rem;text-decoration:none">
+        <i class="bi bi-x"></i>
+      </a>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<!-- FORMULARIO (oculto inicialmente) -->
+<div id="fEgreso" style="display:none;margin-bottom:20px">
+  <div class="card">
+    <div class="card-header">
+      <i class="bi bi-plus-circle me-2" style="color:var(--err)"></i>Registrar Egreso / Gasto
+    </div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('agregar_egreso') }}">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">
+          <div>
+            <label class="form-label">Categoría <span style="color:var(--err)">*</span></label>
+            <select name="categoria" class="form-select" required>
+              {% for c in categorias %}
+              <option value="{{ c }}">{{ c }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="grid-column:span 2">
+            <label class="form-label">Descripción <span style="color:var(--err)">*</span></label>
+            <input type="text" name="descripcion" class="form-control" required
+                   placeholder="Ej: Pago factura 001-234, Sueldo Juan, Luz eléctrica…">
+          </div>
+          <div>
+            <label class="form-label">Monto ($) <span style="color:var(--err)">*</span></label>
+            <input type="number" name="monto" class="form-control" step="0.01" min="0" required placeholder="0.00">
+          </div>
+          <div>
+            <label class="form-label">Método de Pago</label>
+            <select name="metodo_pago" class="form-select" id="eMetodo" onchange="toggleBancoE()">
+              <option value="Efectivo">💵 Efectivo</option>
+              <option value="Transferencia">🏦 Transferencia</option>
+              <option value="Tarjeta">💳 Tarjeta</option>
+              <option value="Cheque">🧾 Cheque</option>
+            </select>
+          </div>
+          <div id="eBancoWrap" style="display:none">
+            <label class="form-label">Banco / Aplicación</label>
+            <select name="banco" class="form-select">
+              {% for b in bancos %}
+              <option value="{{ b }}">{{ b }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Proveedor (opcional)</label>
+            <select name="id_proveedor" class="form-select">
+              <option value="">— Sin proveedor —</option>
+              {% for p in proveedores %}
+              <option value="{{ p.id_proveedor }}">{{ p.nombre_empresa }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:8px">
+          <button type="submit"
+                  style="background:var(--err);border:none;border-radius:9px;color:#fff;padding:8px 20px;font-size:.85rem;font-weight:700;cursor:pointer">
+            <i class="bi bi-check-circle me-1"></i>Registrar Egreso
+          </button>
+          <button type="button" onclick="document.getElementById('fEgreso').style.display='none'"
+                  style="background:var(--card2);border:1px solid var(--bdr);border-radius:9px;color:var(--muted);padding:8px 16px;font-size:.83rem;cursor:pointer">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- TABLA -->
+<div class="card">
+  <div class="card-body p-0">
+    {% if egresos %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Categoría</th>
+            <th>Descripción</th>
+            <th>Proveedor</th>
+            <th>Pago</th>
+            <th class="text-end">Monto</th>
+            {% if user_role == 'Administrador' %}<th class="text-center">Acción</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in egresos %}
+          <tr>
+            <td style="font-size:.8rem;color:var(--muted);white-space:nowrap">{{ e.fecha[:16] if e.fecha else '—' }}</td>
+            <td><span class="cat-chip">{{ e.categoria }}</span></td>
+            <td style="font-size:.87rem;color:var(--txt)">{{ e.descripcion }}</td>
+            <td style="font-size:.82rem;color:var(--muted)">{{ e.nombre_empresa or '—' }}</td>
+            <td style="font-size:.8rem">
+              {{ e.metodo_pago }}
+              {% if e.banco %}<span style="color:var(--muted);font-size:.72rem"> · {{ e.banco }}</span>{% endif %}
+            </td>
+            <td class="text-end" style="font-weight:700;color:var(--err)">${{ "%.2f"|format(e.monto) }}</td>
+            {% if user_role == 'Administrador' %}
+            <td class="text-center">
+              <form method="POST" action="{{ url_for('eliminar_egreso', id_egreso=e.id_egreso) }}"
+                    style="display:inline" onsubmit="return confirm('¿Eliminar este egreso?')">
+                <button type="submit"
+                        style="background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.2);border-radius:7px;color:var(--err);padding:4px 9px;font-size:.78rem;cursor:pointer">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:60px;color:var(--muted)">
+      <i class="bi bi-arrow-down-circle" style="font-size:3rem;display:block;margin-bottom:12px"></i>
+      No hay egresos registrados{% if mes %} en este período{% endif %}.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleBancoE(){
+  const m = document.getElementById('eMetodo').value;
+  document.getElementById('eBancoWrap').style.display = (m==='Transferencia'||m==='Tarjeta'||m==='Cheque') ? '' : 'none';
+}
+</script>
+{% endblock %}

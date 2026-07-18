@@ -1,0 +1,502 @@
+{% extends "base.html" %}
+{% block title %}Reportes — PERNO TODO{% endblock %}
+{% block page_title %}<i class="bi bi-bar-chart-line me-2" style="color:var(--acc)"></i>Reportes y Análisis{% endblock %}
+
+{% block head %}
+<style>
+.vista-tabs{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap}
+.vtab{padding:7px 16px;border-radius:9px;font-size:.82rem;font-weight:700;cursor:pointer;text-decoration:none;border:1px solid var(--bdr);color:var(--muted);background:var(--card);transition:all .15s}
+.vtab:hover{background:var(--card2);color:var(--txt);text-decoration:none}
+.vtab.active{background:var(--acc);color:#fff;border-color:var(--acc)}
+.vtab.ing.active{background:var(--ok);border-color:var(--ok)}
+.vtab.egr.active{background:var(--err);border-color:var(--err)}
+.vtab.com.active{background:#7c3aed;border-color:#7c3aed}
+.vtab.cie.active{background:var(--warn);border-color:var(--warn)}
+
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:var(--card);border:1px solid var(--bdr);border-radius:12px;padding:14px 16px}
+.kpi-lbl{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:4px}
+.kpi-val{font-size:1.5rem;font-weight:900;color:var(--txt)}
+.kpi-sub{font-size:.72rem;color:var(--muted);margin-top:2px}
+.kpi.ing .kpi-val{color:var(--ok)}
+.kpi.egr .kpi-val{color:var(--err)}
+.kpi.util .kpi-val{color:var(--acc)}
+.kpi.warn .kpi-val{color:var(--warn)}
+
+.sec-title{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--muted);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--bdr)}
+.report-card{background:var(--card);border:1px solid var(--bdr);border-radius:12px;padding:18px;margin-bottom:16px}
+.periodo-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.pb{padding:5px 12px;border-radius:7px;font-size:.78rem;font-weight:700;cursor:pointer;text-decoration:none;border:1px solid var(--bdr);color:var(--muted);background:var(--card2)}
+.pb.active{background:var(--acc);color:#fff;border-color:var(--acc)}
+.pb:hover:not(.active){background:var(--abg);text-decoration:none;color:var(--txt)}
+
+/* Tabla compacta */
+.rt{width:100%;border-collapse:collapse;font-size:.83rem}
+.rt th{padding:7px 10px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);background:var(--card2);border-bottom:1px solid var(--bdr);white-space:nowrap}
+.rt td{padding:7px 10px;border-bottom:1px solid var(--bdr);color:var(--txt);vertical-align:middle}
+.rt tr:last-child td{border-bottom:none}
+.rt tr:hover td{background:var(--abg)}
+.pos{color:var(--ok);font-weight:700}
+.neg{color:var(--err);font-weight:700}
+.neu{color:var(--muted)}
+
+/* Cierre badge */
+.met-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--bdr)}
+.met-row:last-child{border-bottom:none}
+.met-lbl{font-size:.85rem;color:var(--txt);display:flex;align-items:center;gap:6px}
+.met-val{font-size:.95rem;font-weight:700}
+
+@media print{
+  .vtab,.pb,.no-print{display:none!important}
+  .report-card{break-inside:avoid;border:1px solid #ddd!important;background:white!important}
+  .kpi{background:white!important;border:1px solid #ddd!important}
+  .kpi-val,.pos{color:#000!important}
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- SELECTOR DE PERÍODO -->
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+  <div>
+    <h2 style="font-size:1.4rem;font-weight:800;color:var(--txt);margin:0">Reportes</h2>
+    <p style="color:var(--muted);font-size:.82rem;margin:3px 0 0">
+      {{ now.strftime('%d/%m/%Y %H:%M') if now else '' }}
+    </p>
+  </div>
+  <div class="d-flex gap-2 no-print">
+    <button onclick="window.print()"
+            style="background:var(--card2);border:1px solid var(--bdr);border-radius:9px;color:var(--txt);padding:7px 14px;font-size:.82rem;cursor:pointer">
+      <i class="bi bi-printer me-1"></i>Imprimir
+    </button>
+  </div>
+</div>
+
+<!-- FILTRO DE PERÍODO -->
+<div class="periodo-bar no-print">
+  {% for p, lbl in [('dia','Hoy'),('semana','Semana'),('mes','Mes'),('trimestre','Trimestre'),('semestre','Semestre'),('año','Año')] %}
+  <a href="{{ url_for('generar_reportes', periodo=p, vista=vista, anio=anio_sel, top_periodo=top_periodo) }}"
+     class="pb {% if periodo==p %}active{% endif %}">{{ lbl }}</a>
+  {% endfor %}
+</div>
+
+<!-- TABS DE VISTA -->
+<div class="vista-tabs no-print">
+  <a href="{{ url_for('generar_reportes', vista='general', periodo=periodo, anio=anio_sel) }}" class="vtab {% if vista=='general' %}active{% endif %}">
+    <i class="bi bi-grid me-1"></i>General
+  </a>
+  <a href="{{ url_for('generar_reportes', vista='ingresos', periodo=periodo, anio=anio_sel) }}" class="vtab ing {% if vista=='ingresos' %}active{% endif %}">
+    <i class="bi bi-arrow-up-circle me-1"></i>Solo Ingresos
+  </a>
+  <a href="{{ url_for('generar_reportes', vista='egresos', periodo=periodo, anio=anio_sel) }}" class="vtab egr {% if vista=='egresos' %}active{% endif %}">
+    <i class="bi bi-arrow-down-circle me-1"></i>Solo Egresos
+  </a>
+  <a href="{{ url_for('generar_reportes', vista='combinado', periodo=periodo, anio=anio_sel) }}" class="vtab com {% if vista=='combinado' %}active{% endif %}">
+    <i class="bi bi-bar-chart me-1"></i>Combinado
+  </a>
+  <a href="{{ url_for('generar_reportes', vista='cierre', periodo=periodo, anio=anio_sel) }}" class="vtab cie {% if vista=='cierre' %}active{% endif %}">
+    <i class="bi bi-calculator me-1"></i>Cierre del Día
+  </a>
+</div>
+
+<!-- ════════════════ VISTA GENERAL ════════════════ -->
+{% if vista == 'general' %}
+<div class="kpi-grid">
+  <div class="kpi ing">
+    <div class="kpi-lbl">Ingresos (período)</div>
+    <div class="kpi-val">${{ "%.2f"|format(ingresos_periodo) }}</div>
+    <div class="kpi-sub">{{ ventas_dia|length }} días con ventas</div>
+  </div>
+  <div class="kpi egr">
+    <div class="kpi-lbl">Egresos (período)</div>
+    <div class="kpi-val">${{ "%.2f"|format(egresos_periodo.total) }}</div>
+    <div class="kpi-sub">{{ egresos_periodo.num }} movimientos</div>
+  </div>
+  <div class="kpi util">
+    <div class="kpi-lbl">Utilidad (período)</div>
+    <div class="kpi-val {% if utilidad_periodo < 0 %}egr{% endif %}">${{ "%.2f"|format(utilidad_periodo) }}</div>
+    <div class="kpi-sub">{% if utilidad_periodo >= 0 %}Positivo ✓{% else %}En déficit ⚠{% endif %}</div>
+  </div>
+  <div class="kpi warn">
+    <div class="kpi-lbl">Ventas hoy</div>
+    <div class="kpi-val">${{ "%.2f"|format(cierre_hoy.total_dia) }}</div>
+    <div class="kpi-sub">{{ cierre_hoy.num_ventas }} transacciones</div>
+  </div>
+  <div class="kpi egr">
+    <div class="kpi-lbl">Egresos hoy</div>
+    <div class="kpi-val">${{ "%.2f"|format(egresos_hoy.total) }}</div>
+    <div class="kpi-sub">{{ egresos_hoy.num }} registros</div>
+  </div>
+  <div class="kpi ing">
+    <div class="kpi-lbl">Total año {{ anio_sel }}</div>
+    <div class="kpi-val">${{ "%.2f"|format(resumen_anio.ingresos_totales) }}</div>
+    <div class="kpi-sub">{{ resumen_anio.total_ventas }} ventas</div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="report-card">
+      <div class="sec-title"><i class="bi bi-trophy me-1"></i>Top 10 Productos más Vendidos</div>
+      {% if top_productos %}
+      <table class="rt">
+        <thead><tr><th>#</th><th>Producto</th><th class="text-center">Unid.</th><th class="text-end">Ingresos</th></tr></thead>
+        <tbody>
+          {% for p in top_productos %}
+          <tr>
+            <td style="color:var(--muted)">{{ loop.index }}</td>
+            <td>{{ p.nombre_producto }}</td>
+            <td class="text-center">{{ p.total_vendido }}</td>
+            <td class="text-end pos">${{ "%.2f"|format(p.ingresos) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p style="color:var(--muted);text-align:center;padding:20px">Sin datos en este período.</p>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="report-card">
+      <div class="sec-title"><i class="bi bi-grid me-1"></i>Ventas por Categoría (hoy)</div>
+      {% if ventas_cat_hoy %}
+      <table class="rt">
+        <thead><tr><th>Categoría</th><th class="text-center">Unid.</th><th class="text-end">Total</th></tr></thead>
+        <tbody>
+          {% for c in ventas_cat_hoy %}
+          <tr>
+            <td>{{ c.nombre_categoria }}</td>
+            <td class="text-center">{{ c.unidades }}</td>
+            <td class="text-end pos">${{ "%.2f"|format(c.total) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p style="color:var(--muted);text-align:center;padding:20px">Sin ventas hoy.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ VISTA SOLO INGRESOS ════════════════ -->
+{% elif vista == 'ingresos' %}
+<div class="kpi-grid">
+  <div class="kpi ing">
+    <div class="kpi-lbl">Total Ingresos</div>
+    <div class="kpi-val">${{ "%.2f"|format(ingresos_periodo) }}</div>
+  </div>
+  <div class="kpi warn">
+    <div class="kpi-lbl">Efectivo</div>
+    <div class="kpi-val">${{ "%.2f"|format(resumen_anio.efectivo) }}</div>
+  </div>
+  <div class="kpi warn">
+    <div class="kpi-lbl">Transferencia</div>
+    <div class="kpi-val">${{ "%.2f"|format(resumen_anio.transferencia) }}</div>
+  </div>
+  <div class="kpi warn">
+    <div class="kpi-lbl">Tarjeta</div>
+    <div class="kpi-val">${{ "%.2f"|format(resumen_anio.tarjeta) }}</div>
+  </div>
+  <div class="kpi ing">
+    <div class="kpi-lbl">Ticket Promedio</div>
+    <div class="kpi-val">${{ "%.2f"|format(resumen_anio.ticket_promedio) }}</div>
+  </div>
+</div>
+
+<div class="report-card">
+  <div class="sec-title"><i class="bi bi-calendar3 me-1"></i>Ingresos por Día</div>
+  {% if ventas_dia %}
+  <table class="rt">
+    <thead><tr><th>Fecha</th><th class="text-center">N° Ventas</th><th class="text-end">Total</th></tr></thead>
+    <tbody>
+      {% for v in ventas_dia|reverse %}
+      <tr>
+        <td>{{ v.dia }}</td>
+        <td class="text-center">{{ v.cantidad }}</td>
+        <td class="text-end pos">${{ "%.2f"|format(v.total) }}</td>
+      </tr>
+      {% endfor %}
+      <tr style="background:var(--card2)">
+        <td colspan="2" style="font-weight:700">TOTAL PERÍODO</td>
+        <td class="text-end pos" style="font-weight:700">${{ "%.2f"|format(ingresos_periodo) }}</td>
+      </tr>
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:var(--muted);text-align:center;padding:20px">Sin ventas en este período.</p>
+  {% endif %}
+</div>
+
+<!-- ════════════════ VISTA SOLO EGRESOS ════════════════ -->
+{% elif vista == 'egresos' %}
+<div class="kpi-grid">
+  <div class="kpi egr">
+    <div class="kpi-lbl">Total Egresos (período)</div>
+    <div class="kpi-val">${{ "%.2f"|format(egresos_periodo.total) }}</div>
+    <div class="kpi-sub">{{ egresos_periodo.num }} movimientos</div>
+  </div>
+  <div class="kpi egr">
+    <div class="kpi-lbl">Egresos hoy</div>
+    <div class="kpi-val">${{ "%.2f"|format(egresos_hoy.total) }}</div>
+    <div class="kpi-sub">{{ egresos_hoy.num }} registros</div>
+  </div>
+  <div class="kpi egr">
+    <div class="kpi-lbl">Egresos año {{ anio_sel }}</div>
+    <div class="kpi-val">${{ "%.2f"|format(egresos_anio.total) }}</div>
+    <div class="kpi-sub">{{ egresos_anio.num }} movimientos</div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="report-card">
+      <div class="sec-title"><i class="bi bi-pie-chart me-1"></i>Egresos por Categoría</div>
+      {% if egresos_cat %}
+      <table class="rt">
+        <thead><tr><th>Categoría</th><th class="text-center">N°</th><th class="text-end">Total</th></tr></thead>
+        <tbody>
+          {% for e in egresos_cat %}
+          <tr>
+            <td>{{ e.categoria }}</td>
+            <td class="text-center">{{ e.num }}</td>
+            <td class="text-end neg">${{ "%.2f"|format(e.total) }}</td>
+          </tr>
+          {% endfor %}
+          <tr style="background:var(--card2)">
+            <td colspan="2" style="font-weight:700">TOTAL</td>
+            <td class="text-end neg" style="font-weight:700">${{ "%.2f"|format(egresos_periodo.total) }}</td>
+          </tr>
+        </tbody>
+      </table>
+      {% else %}
+      <p style="color:var(--muted);text-align:center;padding:20px">Sin egresos en este período.</p>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="report-card">
+      <div class="sec-title"><i class="bi bi-list-ul me-1"></i>Detalle de Egresos de Hoy</div>
+      {% if egresos_hoy_cat %}
+      <table class="rt">
+        <thead><tr><th>Hora</th><th>Categoría</th><th>Descripción</th><th class="text-end">Monto</th></tr></thead>
+        <tbody>
+          {% for e in egresos_hoy_cat %}
+          <tr>
+            <td style="color:var(--muted);font-size:.75rem">{{ e.fecha[11:16] if e.fecha else '—' }}</td>
+            <td>
+              <span style="background:rgba(220,38,38,.08);color:var(--err);font-size:.68rem;font-weight:700;padding:1px 7px;border-radius:10px">
+                {{ e.categoria }}
+              </span>
+            </td>
+            <td style="color:var(--muted)">{{ e.descripcion }}</td>
+            <td class="text-end neg">${{ "%.2f"|format(e.monto) }}</td>
+          </tr>
+          {% endfor %}
+          <tr style="background:var(--card2)">
+            <td colspan="3" style="font-weight:700">TOTAL HOY</td>
+            <td class="text-end neg" style="font-weight:700">${{ "%.2f"|format(egresos_hoy.total) }}</td>
+          </tr>
+        </tbody>
+      </table>
+      {% else %}
+      <p style="color:var(--muted);text-align:center;padding:20px">Sin egresos hoy.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ VISTA COMBINADO ════════════════ -->
+{% elif vista == 'combinado' %}
+<div class="kpi-grid">
+  <div class="kpi ing">
+    <div class="kpi-lbl">Ingresos</div>
+    <div class="kpi-val">${{ "%.2f"|format(ingresos_periodo) }}</div>
+  </div>
+  <div class="kpi egr">
+    <div class="kpi-lbl">Egresos</div>
+    <div class="kpi-val">${{ "%.2f"|format(egresos_periodo.total) }}</div>
+  </div>
+  <div class="kpi util">
+    <div class="kpi-lbl">Utilidad Neta</div>
+    <div class="kpi-val {% if utilidad_periodo < 0 %}neg{% endif %}">${{ "%.2f"|format(utilidad_periodo) }}</div>
+    <div class="kpi-sub">{% if utilidad_periodo >= 0 %}Positivo{% else %}DÉFICIT{% endif %}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-lbl">Margen</div>
+    <div class="kpi-val">
+      {% if ingresos_periodo > 0 %}
+        {{ "%.1f"|format((utilidad_periodo / ingresos_periodo) * 100) }}%
+      {% else %}—{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="report-card">
+  <div class="sec-title"><i class="bi bi-bar-chart me-1"></i>Ingresos vs Egresos por Día</div>
+  {% if combinado %}
+  <div style="overflow-x:auto">
+  <table class="rt">
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th class="text-end" style="color:var(--ok)">Ingresos</th>
+        <th class="text-end" style="color:var(--err)">Egresos</th>
+        <th class="text-end">Utilidad día</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set total_ing = namespace(v=0) %}
+      {% set total_egr = namespace(v=0) %}
+      {% set total_ut = namespace(v=0) %}
+      {% for r in combinado|reverse %}
+      {% set total_ing.v = total_ing.v + r.ingresos %}
+      {% set total_egr.v = total_egr.v + r.egresos %}
+      {% set total_ut.v = total_ut.v + r.utilidad %}
+      <tr>
+        <td>{{ r.dia }}</td>
+        <td class="text-end pos">${{ "%.2f"|format(r.ingresos) }}</td>
+        <td class="text-end neg">${{ "%.2f"|format(r.egresos) }}</td>
+        <td class="text-end {% if r.utilidad >= 0 %}pos{% else %}neg{% endif %}">
+          ${{ "%.2f"|format(r.utilidad) }}
+        </td>
+      </tr>
+      {% endfor %}
+      <tr style="background:var(--card2);font-weight:700">
+        <td>TOTAL PERÍODO</td>
+        <td class="text-end pos">${{ "%.2f"|format(ingresos_periodo) }}</td>
+        <td class="text-end neg">${{ "%.2f"|format(egresos_periodo.total) }}</td>
+        <td class="text-end {% if utilidad_periodo >= 0 %}pos{% else %}neg{% endif %}">
+          ${{ "%.2f"|format(utilidad_periodo) }}
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p style="color:var(--muted);text-align:center;padding:20px">Sin datos en este período.</p>
+  {% endif %}
+</div>
+
+<!-- ════════════════ CIERRE DEL DÍA ════════════════ -->
+{% elif vista == 'cierre' %}
+<div style="max-width:700px">
+
+  <!-- ENCABEZADO CIERRE -->
+  <div class="report-card" style="border-left:4px solid var(--ok)">
+    <div style="font-size:1rem;font-weight:800;color:var(--txt);margin-bottom:4px">
+      <i class="bi bi-sun me-2" style="color:var(--warn)"></i>
+      Cierre del Día — {{ now.strftime('%d/%m/%Y') if now else '' }}
+    </div>
+    <div style="font-size:.78rem;color:var(--muted)">Resumen de operaciones del día</div>
+  </div>
+
+  <!-- INGRESOS HOY -->
+  <div class="report-card">
+    <div class="sec-title" style="color:var(--ok)">
+      <i class="bi bi-arrow-up-circle me-1"></i>INGRESOS DEL DÍA
+    </div>
+    <div class="met-row">
+      <span class="met-lbl"><i class="bi bi-cash me-1" style="color:#16a34a"></i>Efectivo</span>
+      <span class="met-val pos">${{ "%.2f"|format(cierre_hoy.efectivo or 0) }}</span>
+    </div>
+    <div class="met-row">
+      <span class="met-lbl"><i class="bi bi-credit-card me-1" style="color:#2563eb"></i>Tarjeta</span>
+      <span class="met-val pos">${{ "%.2f"|format(cierre_hoy.tarjeta or 0) }}</span>
+    </div>
+    <div class="met-row">
+      <span class="met-lbl"><i class="bi bi-phone me-1" style="color:#7c3aed"></i>Transferencia</span>
+      <span class="met-val pos">${{ "%.2f"|format(cierre_hoy.transferencia or 0) }}</span>
+    </div>
+    <div class="met-row" style="background:rgba(5,150,105,.06);border-radius:8px;padding:10px;margin-top:6px">
+      <span class="met-lbl" style="font-weight:700;font-size:.95rem">
+        <i class="bi bi-check-circle me-1" style="color:var(--ok)"></i>
+        TOTAL INGRESOS
+        <span style="font-size:.72rem;color:var(--muted);font-weight:400">({{ cierre_hoy.num_ventas }} ventas)</span>
+      </span>
+      <span class="met-val pos" style="font-size:1.2rem">${{ "%.2f"|format(cierre_hoy.total_dia or 0) }}</span>
+    </div>
+  </div>
+
+  <!-- EGRESOS HOY -->
+  <div class="report-card">
+    <div class="sec-title" style="color:var(--err)">
+      <i class="bi bi-arrow-down-circle me-1"></i>EGRESOS / GASTOS DEL DÍA
+    </div>
+    {% if egresos_hoy_cat %}
+    {% for e in egresos_hoy_cat %}
+    <div class="met-row">
+      <span class="met-lbl">
+        <span style="background:rgba(220,38,38,.08);color:var(--err);font-size:.68rem;font-weight:700;padding:1px 6px;border-radius:8px">
+          {{ e.categoria }}
+        </span>
+        <span style="color:var(--muted);margin-left:4px">{{ e.descripcion }}</span>
+      </span>
+      <span class="met-val neg">${{ "%.2f"|format(e.monto) }}</span>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div style="color:var(--muted);font-size:.83rem;padding:8px 0">Sin egresos registrados hoy.</div>
+    {% endif %}
+    <div class="met-row" style="background:rgba(220,38,38,.06);border-radius:8px;padding:10px;margin-top:6px">
+      <span class="met-lbl" style="font-weight:700;font-size:.95rem">
+        <i class="bi bi-x-circle me-1" style="color:var(--err)"></i>
+        TOTAL EGRESOS
+        <span style="font-size:.72rem;color:var(--muted);font-weight:400">({{ egresos_hoy.num }} registros)</span>
+      </span>
+      <span class="met-val neg" style="font-size:1.2rem">${{ "%.2f"|format(egresos_hoy.total) }}</span>
+    </div>
+  </div>
+
+  <!-- VENTAS POR CATEGORÍA HOY -->
+  {% if ventas_cat_hoy %}
+  <div class="report-card">
+    <div class="sec-title"><i class="bi bi-grid me-1"></i>Ventas por Categoría</div>
+    <table class="rt">
+      <thead><tr><th>Categoría</th><th class="text-center">Unidades</th><th class="text-end">Total</th></tr></thead>
+      <tbody>
+        {% for c in ventas_cat_hoy %}
+        <tr>
+          <td>{{ c.nombre_categoria }}</td>
+          <td class="text-center">{{ c.unidades }}</td>
+          <td class="text-end pos">${{ "%.2f"|format(c.total) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <!-- RESULTADO DEL DÍA -->
+  {% set util_dia = (cierre_hoy.total_dia or 0) - (egresos_hoy.total or 0) %}
+  <div class="report-card" style="border-left:4px solid {% if util_dia >= 0 %}var(--ok){% else %}var(--err){% endif %}">
+    <div class="sec-title">RESULTADO DEL DÍA</div>
+    <div class="met-row">
+      <span class="met-lbl">Total Ingresos</span>
+      <span class="met-val pos">${{ "%.2f"|format(cierre_hoy.total_dia or 0) }}</span>
+    </div>
+    <div class="met-row">
+      <span class="met-lbl">Total Egresos</span>
+      <span class="met-val neg">-${{ "%.2f"|format(egresos_hoy.total or 0) }}</span>
+    </div>
+    <div class="met-row" style="margin-top:4px;padding-top:8px;border-top:2px solid var(--bdr)">
+      <span class="met-lbl" style="font-size:1rem;font-weight:800">
+        UTILIDAD NETA
+      </span>
+      <span class="met-val {% if util_dia >= 0 %}pos{% else %}neg{% endif %}" style="font-size:1.4rem">
+        ${{ "%.2f"|format(util_dia) }}
+      </span>
+    </div>
+    <div style="text-align:center;margin-top:12px">
+      <span style="background:{% if util_dia >= 0 %}rgba(5,150,105,.1){% else %}rgba(220,38,38,.1){% endif %};color:{% if util_dia >= 0 %}var(--ok){% else %}var(--err){% endif %};padding:4px 18px;border-radius:20px;font-size:.82rem;font-weight:700">
+        {% if util_dia >= 0 %}✓ DÍA POSITIVO{% else %}⚠ DÍA EN DÉFICIT{% endif %}
+      </span>
+    </div>
+  </div>
+
+</div>
+{% endif %}
+
+{% endblock %}

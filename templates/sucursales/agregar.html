@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Nueva Sucursal — PERNO TODO{% endblock %}
+{% block page_title %}<i class="bi bi-building me-2"></i>Nueva Sucursal{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-md-6">
+<div class="card">
+  <div class="card-header"><i class="bi bi-building me-2"></i>Registrar Nueva Sucursal</div>
+  <div class="card-body">
+    <form method="POST">
+      <div class="mb-3">
+        <label class="form-label">Nombre <span style="color:var(--err)">*</span></label>
+        <input type="text" name="nombre" class="form-control" required
+               value="{{ form_data.nombre if form_data else '' }}"
+               placeholder="Ej: Sucursal Norte, Bodega Sur">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Dirección</label>
+        <input type="text" name="direccion" class="form-control"
+               value="{{ form_data.direccion if form_data else '' }}"
+               placeholder="Dirección completa">
+      </div>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Teléfono</label>
+          <input type="text" name="telefono" class="form-control"
+                 value="{{ form_data.telefono if form_data else '' }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">RUC</label>
+          <input type="text" name="ruc" class="form-control" maxlength="13"
+                 value="{{ form_data.ruc if form_data else '' }}">
+        </div>
+      </div>
+      <div class="mt-4 d-flex gap-2">
+        <button type="submit" style="background:var(--acc);border:none;border-radius:9px;color:#fff;padding:8px 20px;font-size:.85rem;font-weight:700;cursor:pointer">
+          <i class="bi bi-check-circle me-1"></i>Crear Sucursal
+        </button>
+        <a href="{{ url_for('listar_sucursales') }}"
+           style="background:var(--card2);border:1px solid var(--bdr);border-radius:9px;color:var(--muted);padding:8px 14px;font-size:.83rem;text-decoration:none">
+          Cancelar
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+</div>
+</div>
+{% endblock %}

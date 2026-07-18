@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Clientes — PERNO TODO{% endblock %}
+{% block page_title %}<i class="bi bi-people me-2" style="color:var(--acc)"></i>Clientes{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2 style="font-size:1.4rem;font-weight:800;color:var(--txt);margin:0">Clientes</h2>
+    <p style="color:var(--muted);font-size:.82rem;margin:3px 0 0">{{ clientes|length }} cliente{{ 's' if clientes|length != 1 else '' }}</p>
+  </div>
+  <a href="{{ url_for('agregar_cliente') }}"
+     style="background:var(--acc);border:none;border-radius:9px;color:#fff;padding:8px 16px;font-size:.83rem;font-weight:700;text-decoration:none;display:flex;align-items:center;gap:6px">
+    <i class="bi bi-person-plus"></i> Nuevo Cliente
+  </a>
+</div>
+
+<!-- BÚSQUEDA -->
+<form method="GET" action="{{ url_for('listar_clientes') }}" class="mb-3 d-flex gap-2">
+  <input type="text" name="q"
+         style="background:var(--card);border:1px solid var(--bdr);border-radius:9px;color:var(--txt);padding:8px 14px;font-size:.88rem;width:100%;max-width:380px;outline:none"
+         placeholder="Buscar por cédula, nombre o apellido…"
+         value="{{ query or '' }}">
+  <button type="submit"
+          style="background:none;border:1px solid var(--bdr);border-radius:9px;color:var(--muted);padding:8px 14px;font-size:.82rem;cursor:pointer">
+    <i class="bi bi-search"></i>
+  </button>
+  {% if query %}
+  <a href="{{ url_for('listar_clientes') }}"
+     style="background:none;border:1px solid var(--bdr);border-radius:9px;color:var(--muted);padding:8px 12px;font-size:.82rem;text-decoration:none">
+    <i class="bi bi-x-lg"></i>
+  </a>
+  {% endif %}
+</form>
+
+<div class="card">
+  <div class="card-body p-0">
+    {% if clientes %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Cédula/RUC</th>
+            <th>Nombre Completo</th>
+            <th>Teléfono</th>
+            <th>Email</th>
+            <th>Tipo</th>
+            <th class="text-center">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in clientes %}
+          <tr>
+            <td><code style="color:var(--err);font-size:.84rem">{{ c.cedula }}</code></td>
+            <td style="font-weight:500;color:var(--txt)">{{ c.nombres }} {{ c.apellidos }}</td>
+            <td style="color:var(--muted)">{{ c.telefono or '—' }}</td>
+            <td style="color:var(--muted);font-size:.83rem">{{ c.email or '—' }}</td>
+            <td>
+              <span style="background:{% if c.tipo=='mayorista' %}rgba(37,99,235,.1){% else %}rgba(100,116,139,.1){% endif %};color:{% if c.tipo=='mayorista' %}var(--acc){% else %}var(--muted){% endif %};font-size:.68rem;font-weight:700;padding:2px 9px;border-radius:20px">
+                {{ c.tipo or 'minorista' }}
+              </span>
+            </td>
+            <td class="text-center">
+              <div class="d-flex gap-1 justify-content-center">
+                <a href="{{ url_for('editar_cliente', cedula=c.cedula) }}"
+                   style="background:none;border:1px solid var(--bdr);border-radius:7px;color:var(--muted);padding:4px 9px;font-size:.78rem;text-decoration:none;transition:all .12s"
+                   onmouseover="this.style.background='rgba(217,119,6,.08)';this.style.color='var(--warn)'"
+                   onmouseout="this.style.background='none';this.style.color='var(--muted)'"
+                   title="Editar">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                {% if user_role == 'Administrador' %}
+                <form method="POST" action="{{ url_for('eliminar_cliente', cedula=c.cedula) }}"
+                      style="display:inline" onsubmit="return confirm('¿Eliminar «{{ c.nombres }} {{ c.apellidos }}»?')">
+                  <button type="submit"
+                          style="background:none;border:1px solid var(--bdr);border-radius:7px;color:var(--muted);padding:4px 9px;font-size:.78rem;cursor:pointer;transition:all .12s"
+                          onmouseover="this.style.background='rgba(220,38,38,.08)';this.style.color='var(--err)'"
+                          onmouseout="this.style.background='none';this.style.color='var(--muted)'"
+                          title="Eliminar">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:60px;color:var(--muted)">
+      <i class="bi bi-people" style="font-size:3rem;display:block;margin-bottom:12px"></i>
+      {% if query %}Sin resultados para «{{ query }}».{% else %}No hay clientes registrados.{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

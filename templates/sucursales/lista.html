@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Sucursales — PERNO TODO{% endblock %}
+{% block page_title %}<i class="bi bi-shop me-2" style="color:var(--acc)"></i>Red de Sucursales{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2 style="font-size:1.4rem;font-weight:800;color:var(--txt);margin:0">Red de Sucursales</h2>
+    <p style="color:var(--muted);font-size:.82rem;margin:3px 0 0">{{ sucursales|length }} sucursal{{ 'es' if sucursales|length != 1 else '' }}</p>
+  </div>
+  <a href="{{ url_for('agregar_sucursal') }}"
+     style="background:var(--acc);border:none;border-radius:9px;color:#fff;padding:8px 16px;font-size:.83rem;font-weight:700;text-decoration:none;display:flex;align-items:center;gap:6px">
+    <i class="bi bi-plus-circle"></i> Nueva Sucursal
+  </a>
+</div>
+
+{% if sucursales %}
+<div class="row g-3">
+  {% for s in sucursales %}
+  <div class="col-md-6 col-xl-4">
+    <div class="card h-100" style="border:1px solid {% if s.es_matriz %}rgba(37,99,235,.25){% else %}var(--bdr){% endif %}">
+      <div class="card-body">
+        <!-- HEADER -->
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div class="d-flex align-items-center gap-2">
+            <div style="width:40px;height:40px;border-radius:10px;background:{% if s.es_matriz %}rgba(37,99,235,.12){% else %}rgba(5,150,105,.1){% endif %};display:flex;align-items:center;justify-content:center">
+              <i class="bi bi-{% if s.es_matriz %}building{% else %}shop{% endif %}" style="color:{% if s.es_matriz %}var(--acc){% else %}var(--ok){% endif %};font-size:1.1rem"></i>
+            </div>
+            <div>
+              <div style="font-weight:700;color:var(--txt);font-size:.95rem">{{ s.nombre }}</div>
+              {% if s.es_matriz %}
+              <span style="background:rgba(37,99,235,.12);color:var(--acc);font-size:.62rem;font-weight:700;padding:1px 7px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px">MATRIZ</span>
+              {% endif %}
+            </div>
+          </div>
+          <span style="background:rgba(5,150,105,.1);color:var(--ok);font-size:.68rem;font-weight:700;padding:2px 9px;border-radius:20px">
+            {% if s.activa %}Activa{% else %}Inactiva{% endif %}
+          </span>
+        </div>
+
+        <!-- INFO -->
+        <div style="font-size:.82rem;color:var(--muted);display:flex;flex-direction:column;gap:5px;margin-bottom:14px">
+          {% if s.direccion %}
+          <div><i class="bi bi-geo-alt me-1"></i>{{ s.direccion }}</div>
+          {% else %}
+          <div style="font-style:italic">Sin dirección registrada</div>
+          {% endif %}
+          {% if s.telefono %}
+          <div><i class="bi bi-telephone me-1"></i>{{ s.telefono }}</div>
+          {% endif %}
+          {% if s.ruc %}
+          <div><i class="bi bi-credit-card me-1"></i>RUC: {{ s.ruc }}</div>
+          {% endif %}
+        </div>
+
+        <!-- STATS -->
+        <div style="background:var(--card2);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:.82rem">
+          <i class="bi bi-box-seam me-1" style="color:var(--acc)"></i>
+          <strong>{{ s.num_productos }}</strong>
+          <span style="color:var(--muted)"> producto{{ 's' if s.num_productos != 1 else '' }} en inventario</span>
+        </div>
+
+        <!-- ACCIONES -->
+        <div class="d-flex gap-2">
+          <a href="{{ url_for('reporte_sucursal', id_sucursal=s.id_sucursal) }}"
+             style="flex:1;background:var(--acc);border:none;border-radius:8px;color:#fff;padding:7px 0;font-size:.8rem;font-weight:700;text-decoration:none;text-align:center">
+            <i class="bi bi-bar-chart-line me-1"></i>Ver Reporte
+          </a>
+          <a href="{{ url_for('editar_sucursal', id_sucursal=s.id_sucursal) }}"
+             style="background:var(--card2);border:1px solid var(--bdr);border-radius:8px;color:var(--warn);padding:7px 12px;font-size:.82rem;text-decoration:none"
+             title="Editar">
+            <i class="bi bi-pencil"></i>
+          </a>
+          {% if not s.es_matriz %}
+          <form method="POST" action="{{ url_for('eliminar_sucursal', id_sucursal=s.id_sucursal) }}"
+                style="display:inline" onsubmit="return confirm('¿Eliminar sucursal «{{ s.nombre }}»?')">
+            <button type="submit"
+                    style="background:var(--card2);border:1px solid rgba(220,38,38,.25);border-radius:8px;color:var(--err);padding:7px 12px;font-size:.82rem;cursor:pointer"
+                    title="Eliminar">
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
+          {% else %}
+          <button disabled
+                  style="background:var(--card2);border:1px solid var(--bdr);border-radius:8px;color:var(--muted);padding:7px 12px;font-size:.82rem;cursor:not-allowed;opacity:.4"
+                  title="La sucursal Matriz no puede eliminarse">
+            <i class="bi bi-trash"></i>
+          </button>
+          {% endif %}
+        </div>
+
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div style="text-align:center;padding:60px;color:var(--muted)">
+  <i class="bi bi-shop" style="font-size:3rem;display:block;margin-bottom:12px"></i>
+  No hay sucursales registradas.
+  <br><br>
+  <a href="{{ url_for('agregar_sucursal') }}"
+     style="background:var(--acc);border:none;border-radius:9px;color:#fff;padding:8px 16px;font-size:.83rem;font-weight:700;text-decoration:none">
+    <i class="bi bi-plus-circle me-1"></i>Agregar la primera
+  </a>
+</div>
+{% endif %}
+{% endblock %}

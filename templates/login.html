@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Iniciar Sesión — PERNO TODO</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        html, body { height: 100%; margin: 0; }
+        body {
+            background: linear-gradient(135deg, #1a2a3a 0%, #2c3e50 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 820px;
+            border: none;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,.5);
+        }
+        .info-panel {
+            background: linear-gradient(160deg, #1a2a3a 0%, #0d6efd 100%);
+            color: white;
+            padding: 3rem 2rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .info-panel h1 { font-size: 2.8rem; font-weight: 800; letter-spacing: 1px; }
+        .info-panel .subtitle { opacity: .8; font-size: 1rem; }
+        .check-item { display: flex; align-items: flex-start; gap: .6rem; margin-bottom: .75rem; font-size: .9rem; opacity: .9; }
+        .form-panel { background: #fff; padding: 3rem 2.5rem; }
+        .form-control:focus { box-shadow: 0 0 0 3px rgba(13,110,253,.2); }
+        .btn-login {
+            background: linear-gradient(90deg, #0d6efd, #0056b3);
+            border: none;
+            font-size: 1.05rem;
+            padding: .75rem;
+            border-radius: 8px;
+            transition: transform .1s, box-shadow .1s;
+        }
+        .btn-login:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(13,110,253,.4); }
+    </style>
+</head>
+<body>
+
+<div class="login-card">
+    <div class="row g-0">
+
+        <!-- PANEL IZQUIERDO INFO -->
+        <div class="col-lg-6 info-panel d-none d-lg-flex">
+            <div>
+                <div class="mb-4">
+                    <i class="bi bi-gear-fill fs-1 text-white-50"></i>
+                </div>
+                <h1>PERNO TODO</h1>
+                <p class="subtitle mb-4">Sistema de Gestión de Inventario y Ventas</p>
+                <div>
+                    <div class="check-item">
+                        <i class="bi bi-check-circle-fill text-success mt-1"></i>
+                        <span>Control completo de inventario con alertas de stock bajo</span>
+                    </div>
+                    <div class="check-item">
+                        <i class="bi bi-check-circle-fill text-success mt-1"></i>
+                        <span>Punto de Venta rápido con búsqueda en tiempo real</span>
+                    </div>
+                    <div class="check-item">
+                        <i class="bi bi-check-circle-fill text-success mt-1"></i>
+                        <span>Gestión de clientes y proveedores</span>
+                    </div>
+                    <div class="check-item">
+                        <i class="bi bi-check-circle-fill text-success mt-1"></i>
+                        <span>Reportes y análisis de ventas</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PANEL DERECHO FORMULARIO -->
+        <div class="col-lg-6 form-panel">
+            <div class="text-center mb-4">
+                <i class="bi bi-lock-fill fs-2 text-primary"></i>
+                <h4 class="mt-2 fw-bold">Iniciar Sesión</h4>
+                <p class="text-muted small">Ingresa tus credenciales para acceder</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible py-2" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            {% endif %}
+            {% endwith %}
+
+            <form method="POST">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Correo Electrónico</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0">
+                            <i class="bi bi-envelope text-muted"></i>
+                        </span>
+                        <input type="email" name="email" class="form-control border-start-0 ps-0"
+                               placeholder="usuario@ejemplo.com" required autofocus>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-semibold">Contraseña</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0">
+                            <i class="bi bi-key text-muted"></i>
+                        </span>
+                        <input type="password" name="password" id="pwdInput"
+                               class="form-control border-start-0 border-end-0 ps-0"
+                               placeholder="Tu contraseña" required>
+                        <button type="button" class="input-group-text bg-light border-start-0"
+                                onclick="togglePwd()">
+                            <i class="bi bi-eye" id="eyeIcon"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-login w-100 text-white">
+                    <i class="bi bi-box-arrow-in-right me-2"></i> Acceder
+                </button>
+
+                <div class="text-center mt-4">
+                    <small class="text-muted">
+                        © 2024 PERNO TODO · Ferretería e Inventario
+                    </small>
+                </div>
+            </form>
+        </div>
+
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function togglePwd() {
+    const inp = document.getElementById('pwdInput');
+    const ico = document.getElementById('eyeIcon');
+    if (inp.type === 'password') {
+        inp.type = 'text';
+        ico.className = 'bi bi-eye-slash';
+    } else {
+        inp.type = 'password';
+        ico.className = 'bi bi-eye';
+    }
+}
+</script>
+</body>
+</html>

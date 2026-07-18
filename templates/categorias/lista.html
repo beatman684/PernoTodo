@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Categorías — PERNO TODO{% endblock %}
+{% block page_title %}<i class="bi bi-grid me-2" style="color:var(--acc)"></i>Categorías de Producto{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <div>
+    <h2 style="font-size:1.4rem;font-weight:800;color:var(--txt);margin:0">Categorías de Producto</h2>
+    <p style="color:var(--muted);font-size:.82rem;margin:3px 0 0">{{ categorias|length }} categorías registradas</p>
+  </div>
+  <!-- Agregar inline -->
+  <div style="display:flex;gap:8px;align-items:center">
+    <input type="text" id="newCat" placeholder="Nueva categoría…"
+           style="background:var(--card);border:1px solid var(--bdr);border-radius:9px;color:var(--txt);padding:7px 12px;font-size:.85rem;outline:none;width:220px"
+           onkeydown="if(event.key==='Enter') addCat()">
+    <button onclick="addCat()"
+            style="background:var(--acc);border:none;border-radius:9px;color:#fff;padding:7px 16px;font-size:.83rem;font-weight:700;cursor:pointer">
+      <i class="bi bi-plus-circle me-1"></i>Agregar
+    </button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    {% if categorias %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Nombre</th>
+            <th>Prefijo de Código</th>
+            <th class="text-center">Productos</th>
+            <th class="text-center">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cat in categorias %}
+          <tr>
+            <td style="color:var(--muted);font-size:.8rem">{{ loop.index }}</td>
+            <td style="font-weight:600;color:var(--txt)">{{ cat.nombre_categoria }}</td>
+            <td>
+              <code style="color:var(--warn);background:rgba(217,119,6,.08);padding:2px 9px;border-radius:5px;font-size:.82rem">
+                {{ cat.nombre_categoria[:3].upper() }}-
+              </code>
+            </td>
+            <td class="text-center">
+              {% if cat.num_productos > 0 %}
+              <span class="bok">{{ cat.num_productos }}</span>
+              {% else %}
+              <span class="bout">0</span>
+              {% endif %}
+            </td>
+            <td class="text-center">
+              {% if cat.num_productos == 0 %}
+              <form method="POST" action="{{ url_for('eliminar_categoria', id_categoria=cat.id_categoria) }}"
+                    style="display:inline" onsubmit="return confirm('¿Eliminar «{{ cat.nombre_categoria }}»?')">
+                <button type="submit"
+                        style="background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.2);border-radius:7px;color:var(--err);padding:4px 10px;font-size:.78rem;cursor:pointer">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+              {% else %}
+              <span style="font-size:.75rem;color:var(--muted)">En uso</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:60px 20px;color:var(--muted)">
+      <i class="bi bi-grid" style="font-size:3rem;display:block;margin-bottom:12px"></i>
+      No hay categorías. Agrega la primera arriba.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function addCat(){
+  const inp = document.getElementById('newCat');
+  const nombre = inp.value.trim();
+  if(!nombre) return;
+  try{
+    const r = await fetch("{{ url_for('api_agregar_categoria') }}", {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({nombre})
+    });
+    const d = await r.json();
+    if(d.success){ location.reload(); }
+    else { alert(d.message || 'Error'); }
+  }catch(e){ alert('Error de conexión'); }
+}
+</script>
+{% endblock %}
