@@ -141,7 +141,7 @@
     </div>
     <div style="text-align:right">
         <div class="greet-time" id="clock">--:--:--</div>
-        <div class="greet-date">{{ now.strftime('%A, ') ~ now.day|string ~ now.strftime(' de %B de %Y') if now else '' }}</div>
+        <div class="greet-date">{{ fecha_es(now) if now else '' }}</div>
     </div>
 </div>
 
@@ -204,7 +204,7 @@
                     <i class="bi bi-graph-up" style="color:var(--accent)"></i>
                     Ventas — Últimos 7 días
                     <span style="margin-left:auto;font-size:.72rem;color:var(--text-muted)">
-                        {{ now.strftime('%b %Y') if now else '' }}
+                        {{ mes_es(now) if now else '' }}
                     </span>
                 </div>
                 <canvas id="chartVentas" height="90"></canvas>
@@ -263,7 +263,7 @@
                 </div>
                 <div style="font-size:2rem;font-weight:800">${{ "%.2f"|format(stats.ventas_mes) }}</div>
                 <div style="font-size:.75rem;color:rgba(255,255,255,.6);margin-top:2px">
-                    {{ now.strftime('%B %Y') if now else '' }}
+                    {{ mes_es(now) if now else '' }}
                 </div>
             </div>
         </div>

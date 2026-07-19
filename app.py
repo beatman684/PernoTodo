@@ -6,7 +6,7 @@ import re
 import secrets
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from dotenv import load_dotenv
 from flask import (Flask, render_template, request, redirect,
                    url_for, flash, session, g, jsonify)
@@ -31,6 +31,47 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 # IVA vigente en Ecuador (%). Los precios de venta INCLUYEN IVA;
 # el sistema desglosa subtotal e IVA a partir del total.
 IVA_PCT = float(os.environ.get('IVA_PCT', '15'))
+
+# Hora de corte del día de negocio: las ventas desde esta hora en adelante
+# se registran para el día siguiente.
+HORA_CORTE = int(os.environ.get('HORA_CORTE', '20'))
+
+DIAS_ES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+MESES_ES = ['', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+            'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+
+
+def fecha_es(dt=None, con_hora=False):
+    """Fecha en español: 'Viernes 18/07/2026' (opcionalmente con hora)."""
+    dt = dt or datetime.now()
+    base = f'{DIAS_ES[dt.weekday()]} {dt.strftime("%d/%m/%Y")}'
+    return f'{base} — {dt.strftime("%H:%M")}' if con_hora else base
+
+
+def mes_es(dt=None):
+    dt = dt or datetime.now()
+    return f'{MESES_ES[dt.month].capitalize()} {dt.year}'
+
+
+@app.context_processor
+def inject_fecha_es():
+    return {'fecha_es': fecha_es, 'mes_es': mes_es}
+
+
+def fecha_negocio_actual(db):
+    """Día de negocio vigente: corte a las HORA_CORTE (20:00) y, si el día ya
+    fue cerrado formalmente, las nuevas ventas pasan al día siguiente."""
+    ahora = datetime.now()
+    fecha = ahora.date()
+    if ahora.hour >= HORA_CORTE:
+        fecha += timedelta(days=1)
+    try:
+        while db.execute("SELECT 1 FROM cierres_dia WHERE fecha_negocio=?",
+                         (fecha.isoformat(),)).fetchone():
+            fecha += timedelta(days=1)
+    except sqlite3.Error:
+        pass  # tabla aún no migrada: usar solo el corte horario
+    return fecha.isoformat()
 
 _PREFIJOS = {
     'pernos': 'PER', 'tornillos': 'TOR', 'tuercas': 'TUE',
@@ -255,24 +296,26 @@ def dashboard():
     ultimas_ventas = []
     try:
         db = get_db()
+        hoy_neg = fecha_negocio_actual(db)
         stats['total_productos']   = db.execute("SELECT COUNT(*) FROM productos").fetchone()[0]
         stats['bajo_stock']        = db.execute("SELECT COUNT(*) FROM productos WHERE stock_actual<stock_minimo").fetchone()[0]
         stats['total_proveedores'] = db.execute("SELECT COUNT(*) FROM proveedores").fetchone()[0]
         stats['total_clientes']    = db.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
-        r = db.execute("SELECT COUNT(*) c, COALESCE(SUM(total),0) s FROM ventas WHERE DATE(fecha_venta,'localtime')=DATE('now','localtime') AND estado='completada'").fetchone()
+        r = db.execute("SELECT COUNT(*) c, COALESCE(SUM(total),0) s FROM ventas WHERE fecha_negocio=? AND estado='completada'", (hoy_neg,)).fetchone()
         stats['ventas_hoy']   = r['c']
         stats['ingresos_hoy'] = r['s']
         stats['ventas_mes']   = db.execute(
-            "SELECT COALESCE(SUM(total),0) FROM ventas WHERE strftime('%Y-%m',fecha_venta,'localtime')=strftime('%Y-%m','now','localtime') AND estado='completada'"
+            "SELECT COALESCE(SUM(total),0) FROM ventas WHERE strftime('%Y-%m',fecha_negocio)=? AND estado='completada'", (hoy_neg[:7],)
         ).fetchone()[0]
         stats['egresos_hoy']  = db.execute(
-            "SELECT COALESCE(SUM(monto),0) FROM egresos WHERE DATE(fecha,'localtime')=DATE('now','localtime')"
+            "SELECT COALESCE(SUM(monto),0) FROM egresos WHERE fecha_negocio=?", (hoy_neg,)
         ).fetchone()[0]
         alertas = db.execute(
             "SELECT nombre_producto,stock_actual,stock_minimo FROM productos WHERE stock_actual<stock_minimo ORDER BY (stock_actual-stock_minimo) LIMIT 8"
         ).fetchall()
+        desde_7 = (date.fromisoformat(hoy_neg) - timedelta(days=6)).isoformat()
         ventas_7 = db.execute(
-            "SELECT DATE(fecha_venta,'localtime') dia, SUM(total) total FROM ventas WHERE DATE(fecha_venta,'localtime')>=DATE('now','localtime','-6 days') AND estado='completada' GROUP BY dia ORDER BY dia"
+            "SELECT fecha_negocio dia, SUM(total) total FROM ventas WHERE fecha_negocio>=? AND estado='completada' GROUP BY dia ORDER BY dia", (desde_7,)
         ).fetchall()
         stats['ventas_7dias'] = [dict(r) for r in ventas_7]
         ultimas_ventas = db.execute(
@@ -410,10 +453,10 @@ def finalizar_venta():
         extra_val = ', 1, '        if 'id_local' in vcols else ', '
         cur = db.execute(
             f"""INSERT INTO ventas
-               (cedula_cliente, id_empleado, id_sucursal{extra_col}fecha_venta,
+               (cedula_cliente, id_empleado, id_sucursal{extra_col}fecha_venta, fecha_negocio,
                 subtotal, iva, descuento, total, estado, metodo_pago, banco)
-               VALUES (?, ?, 1{extra_val}CURRENT_TIMESTAMP, ?, ?, ?, ?, 'completada', ?, ?)""",
-            (cedula, g.user['id_usuario'], subtotal_base, iva_monto,
+               VALUES (?, ?, 1{extra_val}CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, 'completada', ?, ?)""",
+            (cedula, g.user['id_usuario'], fecha_negocio_actual(db), subtotal_base, iva_monto,
              desc_monto, total_final, metodo_pago, banco)
         )
         id_venta = cur.lastrowid
@@ -566,11 +609,12 @@ def listar_egresos():
             sql += " AND (e.descripcion LIKE ? OR e.categoria LIKE ?)"
             params += [f'%{q}%', f'%{q}%']
         if mes:
-            sql += " AND strftime('%Y-%m',e.fecha,'localtime')=?"
+            sql += " AND substr(e.fecha_negocio,1,7)=?"
             params += [mes]
         sql += " ORDER BY e.fecha DESC LIMIT 200"
         egresos  = db.execute(sql, params).fetchall()
-        resumen  = db.execute("SELECT COALESCE(SUM(monto),0) s, COUNT(*) c FROM egresos WHERE DATE(fecha,'localtime')=DATE('now','localtime')").fetchone()
+        resumen  = db.execute("SELECT COALESCE(SUM(monto),0) s, COUNT(*) c FROM egresos WHERE fecha_negocio=?",
+                              (fecha_negocio_actual(db),)).fetchone()
         prov     = db.execute("SELECT * FROM proveedores ORDER BY nombre_empresa").fetchall()
         db.close()
     except sqlite3.Error as e:
@@ -594,8 +638,8 @@ def agregar_egreso():
     try:
         db = get_db()
         db.execute(
-            "INSERT INTO egresos (categoria,descripcion,monto,metodo_pago,banco,id_proveedor,id_empleado) VALUES (?,?,?,?,?,?,?)",
-            (f['categoria'], f['descripcion'], float(f['monto']),
+            "INSERT INTO egresos (fecha_negocio,categoria,descripcion,monto,metodo_pago,banco,id_proveedor,id_empleado) VALUES (?,?,?,?,?,?,?,?)",
+            (fecha_negocio_actual(db), f['categoria'], f['descripcion'], float(f['monto']),
              f.get('metodo_pago','Efectivo'), f.get('banco','') or None,
              f.get('id_proveedor') or None, g.user['id_usuario'])
         )
@@ -1127,6 +1171,7 @@ def cierre_dia():
     desglose por método de pago y banco/app, egresos y efectivo en caja."""
     try:
         db = get_db()
+        hoy_neg = fecha_negocio_actual(db)
         ventas = db.execute(
             """SELECT v.id_venta, strftime('%H:%M', v.fecha_venta, 'localtime') hora,
                       v.total, v.metodo_pago, v.banco,
@@ -1135,8 +1180,8 @@ def cierre_dia():
                FROM ventas v
                LEFT JOIN clientes c ON v.cedula_cliente = c.cedula
                JOIN usuario u ON v.id_empleado = u.id_usuario
-               WHERE DATE(v.fecha_venta,'localtime')=DATE('now','localtime') AND v.estado='completada'
-               ORDER BY v.fecha_venta"""
+               WHERE v.fecha_negocio=? AND v.estado='completada'
+               ORDER BY v.fecha_venta""", (hoy_neg,)
         ).fetchall()
         resumen = dict(db.execute(
             """SELECT COUNT(*) num, COALESCE(SUM(total),0) total,
@@ -1145,30 +1190,30 @@ def cierre_dia():
                       COALESCE(SUM(CASE WHEN metodo_pago='Tarjeta'       THEN total END),0) tarjeta,
                       COALESCE(SUM(CASE WHEN metodo_pago='Transferencia' THEN total END),0) transferencia
                FROM ventas
-               WHERE DATE(fecha_venta,'localtime')=DATE('now','localtime') AND estado='completada'"""
+               WHERE fecha_negocio=? AND estado='completada'""", (hoy_neg,)
         ).fetchone())
         # Desglose de tarjetas y transferencias por banco / app (Ahorita, De Una…)
         bancos = db.execute(
             """SELECT metodo_pago, COALESCE(NULLIF(banco,''),'(sin detalle)') banco,
                       COUNT(*) num, COALESCE(SUM(total),0) total
                FROM ventas
-               WHERE DATE(fecha_venta,'localtime')=DATE('now','localtime') AND estado='completada'
+               WHERE fecha_negocio=? AND estado='completada'
                      AND metodo_pago IN ('Tarjeta','Transferencia')
-               GROUP BY metodo_pago, banco ORDER BY metodo_pago, total DESC"""
+               GROUP BY metodo_pago, banco ORDER BY metodo_pago, total DESC""", (hoy_neg,)
         ).fetchall()
         egresos = db.execute(
             """SELECT strftime('%H:%M', fecha, 'localtime') hora, categoria, descripcion,
                       monto, metodo_pago, banco
-               FROM egresos WHERE DATE(fecha,'localtime')=DATE('now','localtime')
-               ORDER BY fecha"""
+               FROM egresos WHERE fecha_negocio=?
+               ORDER BY fecha""", (hoy_neg,)
         ).fetchall()
         eg_res = dict(db.execute(
             """SELECT COALESCE(SUM(monto),0) total,
                       COALESCE(SUM(CASE WHEN metodo_pago='Efectivo' THEN monto END),0) efectivo
-               FROM egresos WHERE DATE(fecha,'localtime')=DATE('now','localtime')"""
+               FROM egresos WHERE fecha_negocio=?""", (hoy_neg,)
         ).fetchone())
         anuladas = db.execute(
-            "SELECT COUNT(*) FROM ventas WHERE DATE(fecha_venta,'localtime')=DATE('now','localtime') AND estado='anulada'"
+            "SELECT COUNT(*) FROM ventas WHERE fecha_negocio=? AND estado='anulada'", (hoy_neg,)
         ).fetchone()[0]
         db.close()
     except sqlite3.Error:
@@ -1181,8 +1226,34 @@ def cierre_dia():
     return render_template('reportes/cierre_dia.html',
                            ventas=ventas, resumen=resumen, bancos=bancos,
                            egresos=egresos, eg_res=eg_res, caja=caja, neto=neto,
-                           anuladas=anuladas, now=datetime.now(),
+                           anuladas=anuladas, now=datetime.now(), hoy_neg=hoy_neg,
+                           fecha_neg_es=fecha_es(date.fromisoformat(hoy_neg)),
                            autoimprimir=request.args.get('imprimir') == '1')
+
+
+@app.route('/cierre_dia/ejecutar', methods=['POST'])
+@role_required('Administrador', 'Vendedor')
+def ejecutar_cierre():
+    """Cierra formalmente el día de negocio: lo registra (las ventas siguientes
+    pasan al día siguiente) y ejecuta el respaldo automático."""
+    try:
+        db = get_db()
+        fecha = fecha_negocio_actual(db)
+        db.execute("INSERT OR IGNORE INTO cierres_dia (fecha_negocio, id_usuario) VALUES (?, ?)",
+                   (fecha, g.user['id_usuario']))
+        db.commit()
+        db.close()
+    except sqlite3.Error:
+        app.logger.exception('Error al registrar el cierre del día')
+        return jsonify({'success': False, 'message': 'No se pudo registrar el cierre.'}), 500
+    respaldo_ok = True
+    try:
+        from scripts.respaldo import main as respaldo_main
+        respaldo_ok = respaldo_main(cierre=True) == 0
+    except Exception:
+        app.logger.exception('Respaldo automático del cierre falló')
+        respaldo_ok = False
+    return jsonify({'success': True, 'fecha': fecha, 'respaldo': respaldo_ok})
 
 
 # ── REPORTES ────────────────────────────────────────────────────────────────
@@ -1208,26 +1279,27 @@ def generar_reportes():
 
     try:
         db  = get_db()
+        hoy_neg = fecha_negocio_actual(db)
         dia = _desde(periodo)
 
         # ── ANIOS disponibles
         anios = [r['a'] for r in db.execute(
-            "SELECT DISTINCT strftime('%Y',fecha_venta,'localtime') a FROM ventas ORDER BY a DESC"
+            "SELECT DISTINCT strftime('%Y',fecha_negocio) a FROM ventas ORDER BY a DESC"
         ).fetchall() if r['a']]
 
         # ── VENTAS por día
         ventas_dia = [dict(r) for r in db.execute(
-            """SELECT DATE(fecha_venta,'localtime') dia, COUNT(*) cantidad,
+            """SELECT fecha_negocio dia, COUNT(*) cantidad,
                       COALESCE(SUM(total),0) total
-               FROM ventas WHERE DATE(fecha_venta,'localtime')>=? AND estado='completada'
+               FROM ventas WHERE fecha_negocio>=? AND estado='completada'
                GROUP BY dia ORDER BY dia""", (dia,)
         ).fetchall()]
 
         # ── EGRESOS por día (mismo período)
         egresos_dia = [dict(r) for r in db.execute(
-            """SELECT DATE(fecha,'localtime') dia, COUNT(*) cantidad,
+            """SELECT fecha_negocio dia, COUNT(*) cantidad,
                       COALESCE(SUM(monto),0) total, categoria
-               FROM egresos WHERE DATE(fecha,'localtime')>=?
+               FROM egresos WHERE fecha_negocio>=?
                GROUP BY dia ORDER BY dia""", (dia,)
         ).fetchall()]
 
@@ -1235,14 +1307,14 @@ def generar_reportes():
         egresos_cat = [dict(r) for r in db.execute(
             """SELECT categoria, COUNT(*) num,
                       COALESCE(SUM(monto),0) total
-               FROM egresos WHERE DATE(fecha,'localtime')>=?
+               FROM egresos WHERE fecha_negocio>=?
                GROUP BY categoria ORDER BY total DESC""", (dia,)
         ).fetchall()]
 
         # ── EGRESOS del período completo
         egresos_periodo = dict(db.execute(
             """SELECT COALESCE(SUM(monto),0) total, COUNT(*) num
-               FROM egresos WHERE DATE(fecha,'localtime')>=?""", (dia,)
+               FROM egresos WHERE fecha_negocio>=?""", (dia,)
         ).fetchone())
 
         # ── CIERRE HOY (ingresos)
@@ -1252,20 +1324,20 @@ def generar_reportes():
                       SUM(CASE WHEN metodo_pago='Efectivo'      THEN total ELSE 0 END) efectivo,
                       SUM(CASE WHEN metodo_pago='Transferencia' THEN total ELSE 0 END) transferencia,
                       SUM(CASE WHEN metodo_pago='Tarjeta'       THEN total ELSE 0 END) tarjeta
-               FROM ventas WHERE DATE(fecha_venta,'localtime')=DATE('now','localtime') AND estado='completada'"""
+               FROM ventas WHERE fecha_negocio=? AND estado='completada'""", (hoy_neg,)
         ).fetchone())
 
         # ── EGRESOS HOY
         egresos_hoy = dict(db.execute(
             """SELECT COALESCE(SUM(monto),0) total, COUNT(*) num
-               FROM egresos WHERE DATE(fecha,'localtime')=DATE('now','localtime')"""
+               FROM egresos WHERE fecha_negocio=?""", (hoy_neg,)
         ).fetchone())
 
         # ── EGRESOS HOY por categoría
         egresos_hoy_cat = [dict(r) for r in db.execute(
             """SELECT categoria, descripcion, monto, metodo_pago, fecha
-               FROM egresos WHERE DATE(fecha,'localtime')=DATE('now','localtime')
-               ORDER BY fecha DESC"""
+               FROM egresos WHERE fecha_negocio=?
+               ORDER BY fecha DESC""", (hoy_neg,)
         ).fetchall()]
 
         # ── TOP PRODUCTOS
@@ -1275,7 +1347,7 @@ def generar_reportes():
                FROM detalle_venta dv
                JOIN productos p ON dv.id_producto=p.id_producto
                JOIN ventas v ON dv.id_venta=v.id_venta
-               WHERE DATE(v.fecha_venta,'localtime')>=? AND v.estado='completada'
+               WHERE v.fecha_negocio>=? AND v.estado='completada'
                GROUP BY dv.id_producto ORDER BY total_vendido DESC LIMIT 10""",
             (_desde(top_periodo),)
         ).fetchall()]
@@ -1288,14 +1360,14 @@ def generar_reportes():
                       SUM(CASE WHEN metodo_pago='Efectivo'      THEN total ELSE 0 END) efectivo,
                       SUM(CASE WHEN metodo_pago='Transferencia' THEN total ELSE 0 END) transferencia,
                       SUM(CASE WHEN metodo_pago='Tarjeta'       THEN total ELSE 0 END) tarjeta
-               FROM ventas WHERE strftime('%Y',fecha_venta,'localtime')=? AND estado='completada'""",
+               FROM ventas WHERE strftime('%Y',fecha_negocio)=? AND estado='completada'""",
             (anio_sel,)
         ).fetchone())
 
         # ── EGRESOS AÑO
         egresos_anio = dict(db.execute(
             """SELECT COALESCE(SUM(monto),0) total, COUNT(*) num
-               FROM egresos WHERE strftime('%Y',fecha,'localtime')=?""", (anio_sel,)
+               FROM egresos WHERE strftime('%Y',fecha_negocio)=?""", (anio_sel,)
         ).fetchone())
 
         # ── UTILIDAD = ingresos - egresos (período)
@@ -1309,8 +1381,8 @@ def generar_reportes():
                JOIN productos p ON dv.id_producto=p.id_producto
                JOIN categorias c ON p.id_categoria=c.id_categoria
                JOIN ventas v ON dv.id_venta=v.id_venta
-               WHERE DATE(v.fecha_venta,'localtime')=DATE('now','localtime') AND v.estado='completada'
-               GROUP BY c.id_categoria ORDER BY total DESC"""
+               WHERE v.fecha_negocio=? AND v.estado='completada'
+               GROUP BY c.id_categoria ORDER BY total DESC""", (hoy_neg,)
         ).fetchall()]
 
         # ── TABLA COMBINADA por día (ingresos vs egresos)
@@ -1318,7 +1390,7 @@ def generar_reportes():
         ventas_map  = {r['dia']: r for r in ventas_dia}
         egresos_map = {}
         for r in db.execute(
-            "SELECT DATE(fecha,'localtime') dia, COALESCE(SUM(monto),0) total FROM egresos WHERE DATE(fecha,'localtime')>=? GROUP BY dia", (dia,)
+            "SELECT fecha_negocio dia, COALESCE(SUM(monto),0) total FROM egresos WHERE fecha_negocio>=? GROUP BY dia", (dia,)
         ).fetchall():
             egresos_map[r['dia']] = r['total']
         combinado = []
@@ -1471,22 +1543,22 @@ def reporte_sucursal(id_sucursal):
 
         if has_suc_ventas:
             ventas_mes = db.execute(
-                "SELECT COUNT(*) num,COALESCE(SUM(total),0) total FROM ventas WHERE id_sucursal=? AND strftime('%Y-%m',fecha_venta,'localtime')=strftime('%Y-%m','now','localtime') AND estado='completada'",
+                "SELECT COUNT(*) num,COALESCE(SUM(total),0) total FROM ventas WHERE id_sucursal=? AND strftime('%Y-%m',fecha_negocio)=strftime('%Y-%m','now','localtime') AND estado='completada'",
                 (id_sucursal,)
             ).fetchone()
         else:
             ventas_mes = db.execute(
-                "SELECT COUNT(*) num,COALESCE(SUM(total),0) total FROM ventas WHERE strftime('%Y-%m',fecha_venta,'localtime')=strftime('%Y-%m','now','localtime') AND estado='completada'"
+                "SELECT COUNT(*) num,COALESCE(SUM(total),0) total FROM ventas WHERE strftime('%Y-%m',fecha_negocio)=strftime('%Y-%m','now','localtime') AND estado='completada'"
             ).fetchone()
 
         if has_suc_egres:
             egresos_mes = db.execute(
-                "SELECT COALESCE(SUM(monto),0) total FROM egresos WHERE id_sucursal=? AND strftime('%Y-%m',fecha,'localtime')=strftime('%Y-%m','now','localtime')",
+                "SELECT COALESCE(SUM(monto),0) total FROM egresos WHERE id_sucursal=? AND strftime('%Y-%m',fecha_negocio)=strftime('%Y-%m','now','localtime')",
                 (id_sucursal,)
             ).fetchone()
         else:
             egresos_mes = db.execute(
-                "SELECT COALESCE(SUM(monto),0) total FROM egresos WHERE strftime('%Y-%m',fecha,'localtime')=strftime('%Y-%m','now','localtime')"
+                "SELECT COALESCE(SUM(monto),0) total FROM egresos WHERE strftime('%Y-%m',fecha_negocio)=strftime('%Y-%m','now','localtime')"
             ).fetchone()
 
         db.close()

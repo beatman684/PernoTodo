@@ -1,6 +1,6 @@
 # Instalación de PERNO TODO en la computadora del negocio
 
-Tiempo estimado: **30–45 minutos**. Solo se hace una vez.
+Tiempo estimado: **30 minutos**. Solo se hace una vez.
 
 ## Antes de empezar — llevar en un USB
 
@@ -12,13 +12,12 @@ Desde la computadora actual (desarrollo), copiar al USB:
 
 ## Paso 1 — Instalar los programas base (una sola vez)
 
-En la computadora del negocio, descargar e instalar:
-
 | Programa | De dónde | Detalle importante |
 |---|---|---|
 | **Python 3.11 o superior** | python.org | ✅ Marcar **"Add Python to PATH"** al instalar |
 | **Git** | git-scm.com | Instalación siguiente-siguiente |
 | **Google Drive para escritorio** | google.com/drive/download | Ver "Registro del correo" abajo |
+| **Driver de la impresora térmica** | CD o web del fabricante | Ponerla como **impresora predeterminada** de Windows |
 
 ## Paso 2 — Descargar el sistema
 
@@ -29,60 +28,60 @@ cd C:\
 git clone https://github.com/beatman684/PernoTodo
 ```
 
-Queda creada la carpeta `C:\PernoTodo`.
-
 ## Paso 3 — Copiar los datos del USB
 
-- Copiar `pernotodo.db` del USB a `C:\PernoTodo\database\` (reemplazar si pregunta).
-- Copiar `.env` del USB a `C:\PernoTodo\` (si se llevó).
+- `pernotodo.db` del USB → `C:\PernoTodo\database\` (reemplazar si pregunta).
+- `.env` del USB → `C:\PernoTodo\` (si se llevó).
 
-## Paso 4 — Instalar
+## Paso 4 — Instalar (UN SOLO CLIC)
 
-- Doble clic en `C:\PernoTodo\instalacion\instalar.bat` → espera a "INSTALACIÓN COMPLETADA".
-- Clic **derecho** en `C:\PernoTodo\instalacion\configurar_tareas.bat` →
-  **"Ejecutar como administrador"**.
-- Reiniciar la computadora.
+Doble clic en `C:\PernoTodo\instalacion\instalar.bat` → aceptar el permiso de
+administrador → esperar a "INSTALACIÓN COMPLETADA" → **reiniciar la PC**.
+
+Eso hace TODO: dependencias, clave de seguridad, arranque automático,
+respaldos programados, acceso desde la red local y el **ícono PERNO TODO**
+(con el logo del negocio) en el escritorio.
 
 ## Paso 5 — Comprobar
 
-Al encender, después de ~1 minuto, abrir el ícono **PERNO TODO** del escritorio.
-Debe aparecer la pantalla de inicio de sesión. ✅ Listo para vender.
+Al encender, después de ~1 minuto, doble clic al ícono **PERNO TODO**.
+Se abre en ventana propia (sin barras de navegador) y con impresión directa
+a la térmica. ✅ Listo para vender.
 
 ---
 
 ## 📧 Registro del correo para los respaldos en la nube
 
-Los respaldos NO usan contraseñas dentro del sistema: se apoyan en la app
-oficial **Google Drive para escritorio**, así:
+Los respaldos NO usan contraseñas dentro de PERNO TODO:
 
-1. Instalar **Google Drive para escritorio** (google.com/drive/download).
-2. Al abrirla pide iniciar sesión → usar **el correo del dueño** y su contraseña
-   (la escribe el dueño directamente en la ventana de Google, nadie más la ve
-   ni queda guardada en PERNO TODO).
-3. Con eso aparece una unidad `G:\Mi unidad` en el equipo. **Nada más que hacer**:
-   el sistema detecta la carpeta solo y deja allí los respaldos semanales;
-   Google los sube automáticamente cuando haya internet.
-4. Si Drive quedara en otra ruta, se indica en el archivo `.env`:
-   `RUTA_DRIVE=D:\la\ruta\que\sea`
+1. Instalar **Google Drive para escritorio**.
+2. Al abrirla, el **dueño** inicia sesión con su correo directamente en la
+   ventana de Google (nadie más ve la contraseña, no queda en el sistema).
+3. Aparece la unidad `G:\Mi unidad` — **nada más que configurar**: el sistema
+   detecta la carpeta solo y Google sube los respaldos cuando haya internet.
+4. Si Drive quedara en otra ruta: indicarla en `.env` → `RUTA_DRIVE=...`
 
-## Cómo queda funcionando el día a día
+## El día a día
 
-| Momento | Qué pasa (automático) |
+| Momento | Qué pasa |
 |---|---|
 | Encender la PC | El sistema arranca solo + respaldo diario (guarda 7 días) |
-| Viernes 6:00 PM | Respaldo semanal en disco (8 semanas) + copia a Drive (3 meses) |
-| Cerrar con el botón **"Cerrar PERNO TODO"** | Mensaje "no apague el equipo" → respaldo → apaga la PC sola |
-| 31 de diciembre | Respaldo anual permanente (disco + Drive) |
+| Vender | Ícono **PERNO TODO** → iniciar sesión → Punto de Venta |
+| Fin del día | Botón rojo **CIERRE DEL DÍA** → "CERRAR EL DÍA E IMPRIMIR": imprime el cierre en la térmica, respalda, y pregunta *"¿Cerrar el programa? Sí/No"* (se cierra solo en 60 s). Las ventas posteriores cuentan para el día siguiente |
+| Viernes 6:00 PM | Respaldo semanal en disco (8 semanas) + Drive (3 meses), automático |
+| Corte automático | Las ventas después de las **8:00 PM** se registran para el día siguiente (configurable con `HORA_CORTE` en `.env`) |
 
-- **Vender**: ícono "PERNO TODO" del escritorio → iniciar sesión → Punto de Venta.
-- **Actualizar el sistema**: ícono "Actualizar PERNO TODO" (necesita internet, 1 min).
-- **Ver desde el celular** (misma red WiFi): en el navegador del celular ir a
-  `http://IP-DE-LA-PC:5000` (la IP se ve con el comando `ipconfig`).
-- Los respaldos quedan en `C:\Respaldos_PernoTodo\` (diarios / semanales / anuales)
-  y el registro de cada respaldo en `respaldo.log`.
+## Herramientas en `instalacion\` (para el dueño, no van al escritorio)
+
+- `actualizar.bat` — baja la última versión desde GitHub (1 min, con internet).
+- `respaldo_manual.bat` — hace un respaldo al instante.
+- `crear_icono.ps1` — vuelve a crear el ícono del escritorio si se borra.
+
+Los respaldos quedan en `C:\Respaldos_PernoTodo\` y su registro en `respaldo.log`.
+Ver desde el celular (misma WiFi): `http://IP-DE-LA-PC:5000` (IP con `ipconfig`).
 
 ## Primer día de uso (importante)
 
 1. Entrar como administrador y **cambiar las contraseñas** de los dos usuarios.
 2. Eliminar el usuario antiguo `admin@admin.com` (módulo Usuarios).
-3. Hacer el conteo físico de stock y corregir cantidades (módulo Productos).
+3. Conteo físico de stock y corregir cantidades (módulo Productos).

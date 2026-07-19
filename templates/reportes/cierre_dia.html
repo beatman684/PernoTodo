@@ -14,25 +14,40 @@
 .tabla-cd{width:100%;border-collapse:collapse;font-size:.85rem}
 .tabla-cd th{text-align:left;padding:6px 8px;border-bottom:2px solid var(--bdr);font-size:.7rem;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
 .tabla-cd td{padding:6px 8px;border-bottom:1px solid var(--bdr)}
+/* ── IMPRESIÓN EN TÉRMICA 80mm ── */
 @media print{
-  body{background:white!important;color:black!important;font-size:11px}
-  .cd-card,.cd-caja{border-color:#999!important;background:white!important;break-inside:avoid}
-  .cd-title{color:#000!important}
-  .cd-caja .monto,.text-ok{color:#000!important}
+  @page{size:80mm auto;margin:2mm}
+  body{background:white!important;color:black!important;font-family:'Courier New',monospace;font-size:9px}
+  .cd-wrap{max-width:72mm;margin:0}
+  .cd-card,.cd-caja{border:none!important;border-bottom:1px dashed #000!important;border-radius:0!important;background:white!important;padding:2mm 0!important;margin-bottom:0!important;break-inside:avoid}
+  .cd-title{color:#000!important;font-size:9px;margin-bottom:2mm}
+  .cd-caja{text-align:center}
+  .cd-caja .monto{font-size:16px!important;color:#000!important}
+  .cd-tot{font-size:9px;padding:1mm 0}
+  .text-ok{color:#000!important}
+  .tabla-cd{font-size:8px}
+  .tabla-cd th,.tabla-cd td{padding:1mm}
+  .bi{display:none}
 }
+/* Diálogo de cierre */
+.cd-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:none;align-items:center;justify-content:center}
+.cd-dialog{background:var(--card);border:1px solid var(--bdr);border-radius:14px;padding:28px 32px;max-width:430px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)}
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="cd-wrap">
 
-<div class="d-flex justify-content-between align-items-center mb-3 no-print">
+<div class="d-flex justify-content-between align-items-center mb-3 no-print flex-wrap gap-2">
   <h2 style="font-size:1.3rem;font-weight:800;margin:0">Cierre del Día</h2>
   <div class="d-flex gap-2">
-    <button onclick="window.print()" class="btn btn-danger fw-bold px-4">
-      <i class="bi bi-printer me-2"></i>Imprimir Cierre
+    <button id="btnCerrarDia" onclick="cerrarDia()" class="btn btn-danger fw-bold px-4">
+      <i class="bi bi-lock-fill me-2"></i>CERRAR EL DÍA E IMPRIMIR
     </button>
-    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Volver</a>
+    <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-printer me-1"></i>Solo imprimir
+    </button>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-sm">Volver</a>
   </div>
 </div>
 
@@ -40,7 +55,8 @@
 <div class="cd-card" style="text-align:center">
   <div style="font-size:1.15rem;font-weight:900">⚙ PERNO TODO — CIERRE DE CAJA</div>
   <div style="color:var(--muted);font-size:.85rem;margin-top:3px">
-    {{ now.strftime('%A %d/%m/%Y — %H:%M') }} · Generado por: {{ g.user.nombre }}
+    Día de negocio: <strong>{{ fecha_neg_es }}</strong><br>
+    Emitido: {{ fecha_es(now, true) }} · Por: {{ g.user.nombre }}
   </div>
 </div>
 
@@ -145,10 +161,84 @@
 </div>
 
 </div>
+
+<!-- Diálogo posterior al cierre -->
+<div class="cd-overlay" id="cdOverlay">
+  <div class="cd-dialog">
+    <div style="font-size:2.6rem">✅</div>
+    <div style="font-size:1.15rem;font-weight:800;margin:8px 0 4px">Día cerrado y respaldado</div>
+    <div id="cdRespAviso" style="display:none;color:var(--err);font-size:.85rem;font-weight:700;margin-bottom:6px">
+      ⚠ El respaldo automático falló — avisa al administrador.
+    </div>
+    <div style="color:var(--muted);font-size:.86rem;margin-bottom:18px">
+      El reporte se envió a la impresora.<br>
+      Las ventas que se hagan ahora contarán para el <strong>día siguiente</strong>.
+    </div>
+    <div style="font-size:1rem;font-weight:700;margin-bottom:14px">¿Cerrar el programa?</div>
+    <div class="d-flex gap-2 justify-content-center">
+      <button class="btn btn-danger fw-bold px-4" onclick="cerrarPrograma()">
+        Sí, cerrar (<span id="cdCuenta">60</span> s)
+      </button>
+      <button class="btn btn-outline-secondary" onclick="seguirTrabajando()">No, seguir revisando</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
+<script>
+let cdTimer = null;
+
+async function cerrarDia(){
+  const btn = document.getElementById('btnCerrarDia');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Cerrando día…';
+  try{
+    const r = await fetch("{{ url_for('ejecutar_cierre') }}", {method: 'POST'});
+    const d = await r.json();
+    if(!d.success){
+      alert(d.message || 'No se pudo cerrar el día.');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-lock-fill me-2"></i>CERRAR EL DÍA E IMPRIMIR';
+      return;
+    }
+    if(!d.respaldo) document.getElementById('cdRespAviso').style.display = 'block';
+    window.print();   // en la tienda (modo kiosk-printing) imprime directo en la térmica
+    mostrarDialogo();
+  }catch(e){
+    alert('Error de conexión.');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-lock-fill me-2"></i>CERRAR EL DÍA E IMPRIMIR';
+  }
+}
+
+function mostrarDialogo(){
+  document.getElementById('cdOverlay').style.display = 'flex';
+  let seg = 60;
+  cdTimer = setInterval(() => {
+    seg--;
+    document.getElementById('cdCuenta').textContent = seg;
+    if(seg <= 0) cerrarPrograma();
+  }, 1000);
+}
+
+function cerrarPrograma(){
+  clearInterval(cdTimer);
+  window.close();   // cierra la ventana del programa (modo aplicación)
+  // Si el navegador no permite cerrarse, mostrar indicación
+  setTimeout(() => {
+    document.querySelector('.cd-dialog').innerHTML =
+      '<div style="font-size:2rem">👋</div><div style="font-weight:800;font-size:1.05rem;margin:8px 0">Ya puedes cerrar esta ventana</div><div style="color:var(--muted);font-size:.85rem">El día quedó cerrado y respaldado.</div>';
+  }, 400);
+}
+
+function seguirTrabajando(){
+  clearInterval(cdTimer);
+  window.location = "{{ url_for('dashboard') }}";
+}
+
 {% if autoimprimir %}
-<script>window.addEventListener('load', () => setTimeout(() => window.print(), 400));</script>
+window.addEventListener('load', () => setTimeout(() => window.print(), 400));
 {% endif %}
+</script>
 {% endblock %}

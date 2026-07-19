@@ -57,6 +57,27 @@ def migrate_db():
                 cur.execute(ddl)
         db.commit()
 
+        # 4c. Día de negocio: corte a las 20:00 y cierre formal del día.
+        #     Las ventas/egresos después de las 8 PM (o después del cierre del
+        #     día) pertenecen al día siguiente.
+        if 'fecha_negocio' not in vcols:
+            cur.execute("ALTER TABLE ventas ADD COLUMN fecha_negocio DATE")
+        ecols_fn = [c['name'] for c in cur.execute("PRAGMA table_info(egresos)").fetchall()]
+        if ecols_fn and 'fecha_negocio' not in ecols_fn:
+            cur.execute("ALTER TABLE egresos ADD COLUMN fecha_negocio DATE")
+        # Rellenar filas históricas: fecha local desplazada por el corte de 20:00
+        cur.execute("""UPDATE ventas SET fecha_negocio = DATE(fecha_venta,'localtime','+4 hours')
+                       WHERE fecha_negocio IS NULL""")
+        if ecols_fn:
+            cur.execute("""UPDATE egresos SET fecha_negocio = DATE(fecha,'localtime','+4 hours')
+                           WHERE fecha_negocio IS NULL""")
+        cur.execute("""CREATE TABLE IF NOT EXISTS cierres_dia (
+            fecha_negocio DATE PRIMARY KEY,
+            cerrado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            id_usuario INTEGER
+        )""")
+        db.commit()
+
         # 5. Crear tabla sucursales si no existe
         cur.execute("""CREATE TABLE IF NOT EXISTS sucursales (
             id_sucursal INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -141,6 +162,7 @@ def migrate_db():
         cur.execute("""CREATE TABLE IF NOT EXISTS egresos (
             id_egreso INTEGER PRIMARY KEY AUTOINCREMENT,
             fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            fecha_negocio DATE,
             categoria VARCHAR(50) NOT NULL,
             descripcion TEXT NOT NULL,
             monto DECIMAL(10,2) NOT NULL,
@@ -230,6 +252,7 @@ def init_db():
         id_empleado INTEGER NOT NULL,
         id_sucursal INTEGER DEFAULT 1,
         fecha_venta TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        fecha_negocio DATE,
         subtotal DECIMAL(10,2),
         iva DECIMAL(10,2),
         descuento DECIMAL(10,2) DEFAULT 0,
@@ -253,6 +276,7 @@ def init_db():
     cur.execute("""CREATE TABLE IF NOT EXISTS egresos (
         id_egreso INTEGER PRIMARY KEY AUTOINCREMENT,
         fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        fecha_negocio DATE,
         categoria VARCHAR(50) NOT NULL,
         descripcion TEXT NOT NULL,
         monto DECIMAL(10,2) NOT NULL,
@@ -262,6 +286,12 @@ def init_db():
         id_empleado INTEGER,
         id_sucursal INTEGER DEFAULT 1,
         comprobante VARCHAR(100)
+    )""")
+
+    cur.execute("""CREATE TABLE IF NOT EXISTS cierres_dia (
+        fecha_negocio DATE PRIMARY KEY,
+        cerrado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        id_usuario INTEGER
     )""")
 
     db.commit()
