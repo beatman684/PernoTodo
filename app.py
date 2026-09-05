@@ -13,6 +13,7 @@ from flask import (Flask, render_template, request, redirect,
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from database.connection import get_db, init_db, migrate_db
+from facturacion import calcular_totales
 
 load_dotenv()
 
@@ -440,12 +441,13 @@ def finalizar_venta():
                 )
             total_srv += float(row['precio_venta']) * int(item['cantidad'])
 
-        descuento_pct = min(max(descuento_pct, 0.0), 100.0)
-        desc_monto  = round(total_srv * (descuento_pct / 100.0), 2)
-        total_final = round(total_srv - desc_monto, 2)
-        # Los precios incluyen IVA: desglosar subtotal (base imponible) e IVA
-        subtotal_base = round(total_final / (1 + IVA_PCT / 100.0), 2)
-        iva_monto     = round(total_final - subtotal_base, 2)
+        # Cálculo de descuento, total e IVA aislado en facturacion.py
+        # (así se puede probar de forma automatizada, ver tests/test_facturacion.py)
+        _totales      = calcular_totales(total_srv, descuento_pct, IVA_PCT)
+        desc_monto    = _totales['descuento']
+        total_final   = _totales['total']
+        subtotal_base = _totales['subtotal']
+        iva_monto     = _totales['iva']
 
         # La BD heredada tiene id_local NOT NULL sin default: incluirlo si existe
         vcols = [c['name'] for c in db.execute("PRAGMA table_info(ventas)").fetchall()]

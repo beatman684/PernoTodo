@@ -25,3 +25,5 @@ instance/
 # Entornos virtuales
 venv/
 env/
+# Cache de pytest
+.pytest_cache/
