@@ -227,3 +227,19 @@ consistentes aunque el sistema esté en uso. Registro en `respaldo.log`.
 | Crear / editar / eliminar productos | ✅ | ❌ |
 | Proveedores | ✅ | Solo consulta |
 | Categorías · Sucursales · Usuarios · Reportes | ✅ | ❌ |
+
+---
+
+## Flujo de trabajo con Git
+
+El proyecto sigue **GitHub Flow**: la rama `main` se mantiene siempre estable
+y desplegable; cada cambio se desarrolla en una rama `feature/*` independiente
+y se integra a `main` mediante un **Pull Request**, lo que permite revisar los
+cambios antes de fusionarlos y deja registro del historial de cada aporte.
+
+```bash
+git checkout -b feature/nombre-del-cambio   # 1. Crear la rama
+git commit -m "Descripción del cambio"      # 2. Confirmar los cambios
+git push origin feature/nombre-del-cambio   # 3. Publicar la rama
+# 4. Abrir el Pull Request hacia main y fusionarlo tras la revisión
+```
