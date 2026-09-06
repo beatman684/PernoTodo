@@ -1,29 +1,33 @@
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
-env/
+.pytest_cache/
+
+# Entornos virtuales
 venv/
-.env
-.venv
-*.sqlite3
-*.db
-instance/
-.DS_Store
-# Archivos de entorno
+.venv/
+env/
+
+# Variables de entorno (contienen claves)
 .env
 .env.local
 
-# Base de datos SQLite (ya no la usaremos)
+# Base de datos SQLite y respaldos
 *.db
 *.sqlite3
 
 # Logs
 *.log
 
-# Entornos virtuales
-venv/
-env/
-# Cache de pytest
-.pytest_cache/
+# Configuración local de editores y herramientas
+.vscode/
+.idea/
+.claude/
+.navegador/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
