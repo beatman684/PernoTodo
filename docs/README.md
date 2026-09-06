@@ -13,6 +13,7 @@ PernoTodo/
 ├── app.py                    ← Aplicación Flask (rutas y lógica de negocio)
 ├── servidor.py               ← Servidor de producción (Waitress)
 ├── requirements.txt          ← Dependencias Python
+├── requirements-dev.txt      ← Dependencias de pruebas
 ├── render.yaml               ← Despliegue opcional en Render.com
 ├── .env                      ← Variables de entorno (NO se sube a Git)
 │
@@ -22,6 +23,10 @@ PernoTodo/
 │
 ├── scripts/
 │   └── respaldo.py           ← Respaldos automáticos con rotación
+│
+├── tests/
+│   └── test_facturacion.py   ← Pruebas de cálculo de totales e IVA
+├── .github/workflows/        ← Integración continua (GitHub Actions)
 │
 ├── instalacion/              ← Puesta en marcha en la PC del negocio
 │   ├── instalar.bat          ← Instalación completa en un clic
@@ -128,6 +133,22 @@ para mantener el orden:
 
 El código manual sigue disponible. Cada producto puede imprimir su etiqueta
 con código de barras (CODE128), nombre, medida y precio.
+
+---
+
+## Pruebas automatizadas
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest tests/ -v
+```
+
+Cubren el cálculo de totales del punto de venta: desglose de IVA, aplicación
+de descuentos y validación de sus límites (un descuento negativo se ajusta a
+0 % y uno mayor a 100 se limita a 100 %), además del IVA configurable.
+
+Las pruebas se ejecutan automáticamente en **GitHub Actions** con cada envío
+de cambios al repositorio (`.github/workflows/tests.yml`).
 
 ---
 
